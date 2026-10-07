@@ -315,6 +315,6 @@ export class AuthService {
     if (user.password) {
       delete user.password;
     }
-    return AuthChecker.signJWT(user);
+    return AuthChecker.signSessionJWT(user);
   }
 }

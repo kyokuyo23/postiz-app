@@ -18,6 +18,13 @@ class MockRedis {
     return 1;
   }
 
+  // Atomic get-and-delete (single-threaded, so trivially atomic here)
+  async getdel(key: string) {
+    const value = this.data.get(key);
+    this.data.delete(key);
+    return value ?? null;
+  }
+
   // Add other Redis methods as needed for your tests
 }
 
