@@ -29,8 +29,8 @@ or try another availability domain.
 3. **DNS** (IDwebhost → cPanel Zone Editor or DNS Management): add only an
    `A` record `app` → the VM's public IP. Do not change `@`, `www`, `MX` or the
    nameservers of an existing website.
-4. **Get the files**: clone this repo (or copy `docker-compose.yaml` and
-   `dynamicconfig/`).
+4. **Get the files**: clone this repo, branch `security/socialflow-hardening`
+   (you need `docker-compose.yaml` and `dynamicconfig/`).
 5. **Edit `docker-compose.yaml`** (service `postiz`):
 
    ```yaml
@@ -78,8 +78,27 @@ or try another availability domain.
 
 - Uploads use local storage (`postiz-uploads` volume); back it up or switch to
   Cloudflare R2 (`STORAGE_PROVIDER=cloudflare`).
-- The official image does **not** contain the hardening from PR #1; the repo has
-  no production Dockerfile in the root, so building from this branch needs one.
+- The official image does **not** contain the hardening from PR #1. To run this
+  branch instead, see "Build from this branch" below.
+- On every start the container runs `prisma db push --accept-data-loss`
+  (`pm2-run` in `package.json`). Back up the database before upgrading images.
+
+## Build from this branch (optional)
+
+`Dockerfile.dev` is the file upstream uses to build the official amd64 and arm64
+images (`.github/workflows/build-containers.yml`), so it works on the ARM VM.
+
+```bash
+git clone -b security/socialflow-hardening https://github.com/kyokuyo23/postiz-app.git
+cd postiz-app
+docker build -f Dockerfile.dev -t postiz-socialflow:local .
+```
+
+Then in `docker-compose.yaml` set `image: postiz-socialflow:local` for the
+`postiz` service. The build compiles all three apps with a 4 GB Node heap, so it
+needs the A1 VM's RAM and takes a while on 2 OCPUs. Optional hardening flags
+(`SESSION_JWT_TTL`, `RESTRICT_PROVIDER_ACCOUNT_MUTATIONS`) are described in
+`.env.example`; leave them unset to keep upstream behaviour.
 - Social logins (Facebook, TikTok, ...) still need each platform's app
   credentials and, for Meta, App Review. Redirect URIs use the same
   `https://app.distributor-yokomitsu.web.id` origin.
