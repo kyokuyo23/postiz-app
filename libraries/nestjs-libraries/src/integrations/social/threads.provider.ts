@@ -14,6 +14,10 @@ import { Plug } from '@gitroom/helpers/decorators/plug.decorator';
 import { Integration } from '@prisma/client';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
+import {
+  FetchedComment,
+  ResearchItem,
+} from '@gitroom/nestjs-libraries/integrations/social/comments.interface';
 
 export class ThreadsProvider extends SocialAbstract implements SocialProvider {
   identifier = 'threads';
@@ -25,7 +29,18 @@ export class ThreadsProvider extends SocialAbstract implements SocialProvider {
     'threads_manage_replies',
     'threads_manage_insights',
     // 'threads_profile_discovery',
+    // Comment inbox needs to read replies. Opt-in so existing apps whose
+    // Meta app is not approved for this permission keep connecting normally.
+    ...(process.env.THREADS_COMMENT_INBOX === 'true'
+      ? ['threads_read_replies']
+      : []),
+    // Research (keyword search) needs its own approved permission.
+    ...(process.env.THREADS_KEYWORD_SEARCH === 'true'
+      ? ['threads_keyword_search']
+      : []),
   ];
+
+  commentCapabilities = { reply: true, hide: true, directMessage: false };
   override maxConcurrentJob = 2; // Threads has moderate rate limits
   refreshCron = true;
 
@@ -456,6 +471,119 @@ export class ThreadsProvider extends SocialAbstract implements SocialProvider {
         releaseURL: permalink,
       },
     ];
+  }
+
+  async fetchComments(
+    integration: Integration,
+    since: Date
+  ): Promise<FetchedComment[]> {
+    const base = 'https://graph.threads.net/v1.0';
+    const { data: posts = [] } = await (
+      await this.fetch(
+        `${base}/${integration.internalId}/threads?fields=id,permalink,text,timestamp&limit=15&access_token=${integration.token}`
+      )
+    ).json();
+
+    const comments: FetchedComment[] = [];
+    for (const post of posts as any[]) {
+      // Replies cannot be older than the post itself
+      if (post.timestamp && dayjs(post.timestamp).isBefore(dayjs(since).subtract(30, 'day'))) {
+        continue;
+      }
+      const { data: replies = [] } = await (
+        await this.fetch(
+          `${base}/${post.id}/conversation?fields=id,text,username,timestamp,hide_status,is_reply_owned_by_me,replied_to&reverse=false&access_token=${integration.token}`
+        )
+      ).json();
+
+      for (const reply of replies as any[]) {
+        if (reply.is_reply_owned_by_me || !reply.text) {
+          continue;
+        }
+        if (!dayjs(reply.timestamp).isAfter(since)) {
+          continue;
+        }
+        comments.push({
+          id: reply.id,
+          postId: post.id,
+          postUrl: post.permalink,
+          postText: post.text,
+          parentId: reply.replied_to?.id !== post.id ? reply.replied_to?.id : undefined,
+          authorName: reply.username || 'Threads user',
+          text: reply.text,
+          publishedAt: reply.timestamp,
+          hidden: reply.hide_status === 'HIDDEN',
+        });
+      }
+      await timer(300);
+    }
+    return comments;
+  }
+
+  async searchContent(
+    integration: Integration,
+    query: string
+  ): Promise<ResearchItem[]> {
+    if (process.env.THREADS_KEYWORD_SEARCH !== 'true') {
+      throw new Error(
+        'Threads keyword search is not enabled (THREADS_KEYWORD_SEARCH) or not approved for this Meta app'
+      );
+    }
+    const { data = [] } = await (
+      await this.fetch(
+        `https://graph.threads.net/v1.0/keyword_search?q=${encodeURIComponent(
+          query
+        )}&search_type=TOP&fields=id,text,permalink,timestamp,username&access_token=${integration.token}`
+      )
+    ).json();
+    return (data as any[]).map((p) => ({
+      id: p.id,
+      url: p.permalink,
+      text: p.text || '',
+      author: p.username || '',
+      publishedAt: p.timestamp,
+    }));
+  }
+
+  async replyToComment(
+    integration: Integration,
+    comment: { id: string; postId: string; parentId?: string | null },
+    text: string
+  ): Promise<{ id: string }> {
+    const form = new FormData();
+    form.append('media_type', 'TEXT');
+    form.append('text', text);
+    form.append('reply_to_id', comment.id);
+    form.append('access_token', integration.token);
+
+    const { id: creationId } = await (
+      await this.fetch('https://graph.threads.net/v1.0/me/threads', {
+        method: 'POST',
+        body: form,
+      })
+    ).json();
+
+    await timer(2000);
+
+    const { id } = await (
+      await this.fetch(
+        `https://graph.threads.net/v1.0/${integration.internalId}/threads_publish?creation_id=${creationId}&access_token=${integration.token}`,
+        { method: 'POST' }
+      )
+    ).json();
+
+    return { id };
+  }
+
+  async hideComment(
+    integration: Integration,
+    commentId: string,
+    hide: boolean
+  ): Promise<void> {
+    await this.fetch(
+      `https://graph.threads.net/v1.0/${commentId}/manage_reply?hide=${hide}&access_token=${integration.token}`,
+      { method: 'POST' }
+    );
   }
 
   async analytics(

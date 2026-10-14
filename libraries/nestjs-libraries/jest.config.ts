@@ -3,7 +3,10 @@ export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
   rootDir: '.',
-  testMatch: ['<rootDir>/src/security/__tests__/**/*.spec.ts'],
+  testMatch: [
+    '<rootDir>/src/security/__tests__/**/*.spec.ts',
+    '<rootDir>/src/comments/__tests__/**/*.spec.ts',
+  ],
   transform: {
     '^.+\\.ts$': ['ts-jest', { isolatedModules: true, diagnostics: false }],
   },

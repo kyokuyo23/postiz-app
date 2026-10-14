@@ -43,6 +43,11 @@ model Organization {
   webhooks            Webhooks[]
   oauthApp            OAuthApp[]
   oauthAuthorizations OAuthAuthorization[]
+  socialComments      SocialComment[]
+  commentSyncs        CommentSync[]
+  commentAutomations  CommentAutomation[]
+  commentTemplates    CommentAutomationTemplate[]
+  commentLogs         CommentAutomationLog[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -341,6 +346,8 @@ model Integration {
   orderItems            OrderItems[]
   plugs                 Plugs[]
   posts                 Post[]
+  socialComments        SocialComment[]
+  commentSync           CommentSync?
 
   @@unique([organizationId, internalId])
   @@index([rootInternalId])
@@ -967,4 +974,118 @@ model Announcement {
   description String
   color       AnnouncementColor @default(INFO)
   createdAt   DateTime          @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Comment inbox & automation (additive; no existing table is altered)
+// ---------------------------------------------------------------------------
+
+enum SocialCommentStatus {
+  PENDING
+  RESOLVED
+  IGNORED
+}
+
+model SocialComment {
+  id               String              @id @default(uuid())
+  organizationId   String
+  integrationId    String
+  internalId       String
+  postInternalId   String
+  postUrl          String?
+  postText         String?
+  parentInternalId String?
+  authorName       String
+  authorId         String?
+  authorPicture    String?
+  text             String
+  status           SocialCommentStatus @default(PENDING)
+  hidden           Boolean             @default(false)
+  repliedText      String?
+  repliedAt        DateTime?
+  resolvedBy       String?
+  publishedAt      DateTime
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  organization     Organization        @relation(fields: [organizationId], references: [id])
+  integration      Integration         @relation(fields: [integrationId], references: [id])
+  logs             CommentAutomationLog[]
+
+  @@unique([integrationId, internalId])
+  @@index([organizationId, status])
+  @@index([organizationId, publishedAt])
+}
+
+model CommentSync {
+  id             String       @id @default(uuid())
+  organizationId String
+  integrationId  String       @unique
+  enabled        Boolean      @default(true)
+  lastSyncAt     DateTime?
+  lastError      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  integration    Integration  @relation(fields: [integrationId], references: [id])
+
+  @@index([organizationId])
+}
+
+model CommentAutomation {
+  id              String                 @id @default(uuid())
+  organizationId  String
+  name            String
+  active          Boolean                @default(true)
+  integrations    String                 @default("[]")
+  matchType       String                 @default("any")
+  keywords        String                 @default("[]")
+  excludeKeywords String                 @default("[]")
+  replies         String                 @default("[]")
+  hide            Boolean                @default(false)
+  markAs          SocialCommentStatus    @default(RESOLVED)
+  runs            Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  deletedAt       DateTime?
+  organization    Organization           @relation(fields: [organizationId], references: [id])
+  logs            CommentAutomationLog[]
+
+  @@index([organizationId])
+  @@index([deletedAt])
+}
+
+model CommentAutomationTemplate {
+  id              String              @id @default(uuid())
+  organizationId  String
+  name            String
+  description     String?
+  matchType       String              @default("any")
+  keywords        String              @default("[]")
+  excludeKeywords String              @default("[]")
+  replies         String              @default("[]")
+  hide            Boolean             @default(false)
+  markAs          SocialCommentStatus @default(RESOLVED)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  deletedAt       DateTime?
+  organization    Organization        @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+model CommentAutomationLog {
+  id             String            @id @default(uuid())
+  organizationId String
+  automationId   String?
+  commentId      String
+  action         String
+  success        Boolean
+  error          String?
+  createdAt      DateTime          @default(now())
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  automation     CommentAutomation? @relation(fields: [automationId], references: [id])
+  comment        SocialComment     @relation(fields: [commentId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([commentId])
 }
