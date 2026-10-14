@@ -94,6 +94,75 @@ export const useMenuItem = () => {
       path: '/analytics',
     },
     {
+      name: t('engagement', 'Engagement'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M21 11.5C21 16.1944 16.9706 20 12 20C10.8053 20 9.66489 19.7803 8.62051 19.3813L3 20.5L4.37005 16.3901C3.50281 14.9862 3 13.3069 3 11.5C3 6.80558 7.02944 3 12 3C16.9706 3 21 6.80558 21 11.5Z"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8.5 11.5H8.51M12 11.5H12.01M15.5 11.5H15.51"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        </svg>
+      ),
+      path: '/engagement',
+    },
+    {
+      name: t('automation', 'Automation'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M13 2L4.09 12.69C3.74 13.11 3.57 13.32 3.57 13.5C3.56 13.65 3.63 13.8 3.75 13.9C3.89 14 4.16 14 4.71 14H12L11 22L19.91 11.31C20.26 10.89 20.43 10.68 20.43 10.5C20.44 10.35 20.37 10.2 20.25 10.1C20.11 10 19.84 10 19.29 10H12L13 2Z"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+      path: '/automations',
+    },
+    {
+      name: t('research', 'Research'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+      path: '/research',
+    },
+    {
       name: t('media', 'Media'),
       icon: (
         <svg
