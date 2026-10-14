@@ -1,3 +1,4 @@
+import { CommentsProvider } from '@gitroom/nestjs-libraries/integrations/social/comments.interface';
 import { Integration } from '@prisma/client';
 
 export interface ClientInformation {
@@ -137,7 +138,8 @@ export type FetchPageInformationResult = {
 
 export interface SocialProvider
   extends IAuthenticator,
-    ISocialMediaIntegration {
+    ISocialMediaIntegration,
+    CommentsProvider {
   identifier: string;
   refreshWait?: boolean;
   convertToJPEG?: boolean;

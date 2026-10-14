@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
@@ -15,6 +16,7 @@ import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.reque
 import { Organization, User } from '@prisma/client';
 import { IntegrationFunctionDto } from '@gitroom/nestjs-libraries/dtos/integrations/integration.function.dto';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
+import { ProviderAccountAdminGuard } from '@gitroom/backend/services/auth/permissions/provider-account-admin.guard';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
 import { ApiTags } from '@nestjs/swagger';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
@@ -44,6 +46,7 @@ export class IntegrationsController {
   ) {}
 
   @Post('/provider/:id/connect')
+  @UseGuards(ProviderAccountAdminGuard)
   @CheckPolicies([AuthorizationActions.Create, Sections.CHANNEL])
   async saveProviderPage(
     @GetOrgFromRequest() org: Organization,
@@ -191,6 +194,7 @@ export class IntegrationsController {
   }
 
   @Get('/social/:integration')
+  @UseGuards(ProviderAccountAdminGuard)
   @CheckPolicies([AuthorizationActions.Create, Sections.CHANNEL])
   async getIntegrationUrl(
     @Param('integration') integration: string,
@@ -379,6 +383,7 @@ export class IntegrationsController {
   }
 
   @Post('/disable')
+  @UseGuards(ProviderAccountAdminGuard)
   disableChannel(
     @GetOrgFromRequest() org: Organization,
     @Body('id') id: string
@@ -387,6 +392,7 @@ export class IntegrationsController {
   }
 
   @Post('/enable')
+  @UseGuards(ProviderAccountAdminGuard)
   enableChannel(
     @GetOrgFromRequest() org: Organization,
     @Body('id') id: string
@@ -400,6 +406,7 @@ export class IntegrationsController {
   }
 
   @Delete('/')
+  @UseGuards(ProviderAccountAdminGuard)
   async deleteChannel(
     @GetOrgFromRequest() org: Organization,
     @Body('id') id: string

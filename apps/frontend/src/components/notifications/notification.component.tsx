@@ -8,13 +8,31 @@ import dayjs from 'dayjs';
 import { useClickAway } from '@uidotdev/usehooks';
 import ReactLoading from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-function replaceLinks(text: string) {
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function replaceLinks(rawText: string) {
+  // Notification content can embed user-controlled strings (channel names,
+  // post text). Everything is HTML-escaped; only http(s) URLs matched by the
+  // regex (which cannot contain quotes or angle brackets) become anchors.
+  const text = rawText ?? '';
   const urlRegex =
     /(\bhttps?:\/\/[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])/gi;
-  return text.replace(
-    urlRegex,
-    '<a class="cursor-pointer underline font-bold" target="_blank" href="$1">$1</a>'
-  );
+  let out = '';
+  let last = 0;
+  for (const match of text.matchAll(urlRegex)) {
+    const index = match.index ?? 0;
+    out += escapeHtml(text.slice(last, index));
+    const url = escapeHtml(match[0]);
+    out += `<a class="cursor-pointer underline font-bold" target="_blank" rel="noopener noreferrer" href="${url}">${url}</a>`;
+    last = index + match[0].length;
+  }
+  return out + escapeHtml(text.slice(last));
 }
 export const ShowNotification: FC<{
   notification: {

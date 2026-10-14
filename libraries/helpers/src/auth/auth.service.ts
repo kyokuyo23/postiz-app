@@ -1,4 +1,4 @@
-import { sign, verify } from 'jsonwebtoken';
+import { sign, verify, SignOptions } from 'jsonwebtoken';
 import { hashSync, compareSync } from 'bcrypt';
 import crypto from 'crypto';
 // @ts-ignore
@@ -41,6 +41,19 @@ export class AuthService {
   }
   static signJWT(value: object) {
     return sign(value, process.env.JWT_SECRET!);
+  }
+  // Session tokens. Opt-in expiry: set SESSION_JWT_TTL (seconds, or a span such
+  // as "30d") to make newly issued sessions expire server-side. When unset the
+  // behaviour is unchanged, so existing deployments and sessions are unaffected.
+  static signSessionJWT(value: object) {
+    const ttl = process.env.SESSION_JWT_TTL?.trim();
+    if (!ttl) {
+      return sign(value, process.env.JWT_SECRET!);
+    }
+    const expiresIn = (/^\d+$/.test(ttl)
+      ? Number(ttl)
+      : ttl) as SignOptions['expiresIn'];
+    return sign(value, process.env.JWT_SECRET!, { expiresIn });
   }
   static verifyJWT(token: string) {
     return verify(token, process.env.JWT_SECRET!);

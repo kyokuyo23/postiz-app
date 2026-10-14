@@ -57,9 +57,11 @@ export class NoAuthIntegrationsController {
     const integrationProvider =
       this._integrationManager.getSocialIntegration(integration);
 
+    // GETDEL consumes the state atomically: of N concurrent/replayed callbacks
+    // carrying the same state, only one can obtain the verifier.
     const getCodeVerifier = integrationProvider.customFields
       ? 'none'
-      : await ioRedis.get(`login:${body.state}`);
+      : await ioRedis.getdel(`login:${body.state}`);
     if (!getCodeVerifier) {
       throw new Error('Invalid state');
     }
@@ -70,10 +72,6 @@ export class NoAuthIntegrationsController {
     }
 
     const org = await this._organizationService.getOrgById(organization);
-
-    if (!integrationProvider.customFields) {
-      await ioRedis.del(`login:${body.state}`);
-    }
 
     const details = integrationProvider.externalUrl
       ? await ioRedis.get(`external:${body.state}`)

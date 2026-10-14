@@ -20,6 +20,11 @@ import dayjs from 'dayjs';
 import { GaxiosResponse } from 'gaxios/build/src/common';
 import Schema$Video = youtube_v3.Schema$Video;
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { Integration } from '@prisma/client';
+import {
+  FetchedComment,
+  ResearchItem,
+} from '@gitroom/nestjs-libraries/integrations/social/comments.interface';
 
 const clientAndYoutube = () => {
   const client = new google.auth.OAuth2({
@@ -70,6 +75,144 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   editor = 'normal' as const;
   maxLength() {
     return 5000;
+  }
+
+  // youtube.force-ssl (already requested) covers reading, replying and moderating.
+  // "hide" maps to holding the comment for review, which the channel owner can undo.
+  commentCapabilities = { reply: true, hide: true, directMessage: false };
+
+  async fetchComments(
+    integration: Integration,
+    since: Date
+  ): Promise<FetchedComment[]> {
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: integration.token });
+    const youtubeClient = youtube(client);
+
+    const comments: FetchedComment[] = [];
+    let pageToken: string | undefined;
+    for (let page = 0; page < 5; page++) {
+      const { data } = await youtubeClient.commentThreads.list({
+        part: ['snippet', 'replies'],
+        allThreadsRelatedToChannelId: integration.internalId,
+        maxResults: 100,
+        order: 'time',
+        textFormat: 'plainText',
+        pageToken,
+      });
+
+      let reachedOld = false;
+      for (const thread of data.items || []) {
+        const top = thread.snippet?.topLevelComment;
+        const videoId = thread.snippet?.videoId || '';
+        const all = [
+          top,
+          ...((thread.replies?.comments as youtube_v3.Schema$Comment[]) || []),
+        ];
+        for (const c of all) {
+          const sn = c?.snippet;
+          if (!c?.id || !sn) {
+            continue;
+          }
+          if (sn.authorChannelId?.value === integration.internalId) {
+            continue;
+          }
+          const published = sn.publishedAt || '';
+          if (!dayjs(published).isAfter(since)) {
+            if (c === top) {
+              reachedOld = true;
+            }
+            continue;
+          }
+          comments.push({
+            id: c.id,
+            postId: videoId,
+            postUrl: videoId ? `https://www.youtube.com/watch?v=${videoId}` : undefined,
+            parentId: c === top ? undefined : top?.id || undefined,
+            authorName: sn.authorDisplayName || 'YouTube user',
+            authorId: sn.authorChannelId?.value || undefined,
+            authorPicture: sn.authorProfileImageUrl || undefined,
+            text: sn.textOriginal || sn.textDisplay || '',
+            publishedAt: published,
+          });
+        }
+      }
+
+      pageToken = data.nextPageToken || undefined;
+      if (!pageToken || reachedOld) {
+        break;
+      }
+    }
+    return comments;
+  }
+
+  async searchContent(
+    integration: Integration,
+    query: string
+  ): Promise<ResearchItem[]> {
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: integration.token });
+    const yt = youtube(client);
+    // search.list costs 100 quota units per call
+    const { data } = await yt.search.list({
+      part: ['snippet'],
+      q: query,
+      type: ['video'],
+      maxResults: 20,
+      order: 'relevance',
+    });
+    const ids = (data.items || [])
+      .map((i) => i.id?.videoId)
+      .filter(Boolean) as string[];
+    if (!ids.length) {
+      return [];
+    }
+    const { data: details } = await yt.videos.list({
+      part: ['snippet', 'statistics'],
+      id: ids,
+    });
+    return (details.items || []).map((v) => ({
+      id: v.id!,
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+      title: v.snippet?.title || '',
+      text: (v.snippet?.description || '').slice(0, 300),
+      author: v.snippet?.channelTitle || '',
+      thumbnail: v.snippet?.thumbnails?.medium?.url || undefined,
+      publishedAt: v.snippet?.publishedAt || '',
+      views: Number(v.statistics?.viewCount || 0),
+      likes: Number(v.statistics?.likeCount || 0),
+      comments: Number(v.statistics?.commentCount || 0),
+    }));
+  }
+
+  async replyToComment(
+    integration: Integration,
+    comment: { id: string; postId: string; parentId?: string | null },
+    text: string
+  ): Promise<{ id: string }> {
+    // YouTube threads are one level deep: replies must target the top-level comment.
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: integration.token });
+    const { data } = await youtube(client).comments.insert({
+      part: ['snippet'],
+      requestBody: {
+        snippet: { parentId: comment.parentId || comment.id, textOriginal: text },
+      },
+    });
+    return { id: data.id || '' };
+  }
+
+  async hideComment(
+    integration: Integration,
+    commentId: string,
+    hide: boolean
+  ): Promise<void> {
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: integration.token });
+    await youtube(client).comments.setModerationStatus({
+      id: [commentId],
+      moderationStatus: hide ? 'heldForReview' : 'published',
+    });
   }
 
   override async checkValidity(
