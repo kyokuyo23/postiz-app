@@ -45,13 +45,18 @@ const nextConfig = {
     ];
   },
   async rewrites() {
+    // Optional: when the frontend is hosted apart from the backend (e.g. on
+    // Vercel) with local storage, the files live on the backend host. Set
+    // UPLOADS_PROXY_URL (e.g. https://api.example.com/uploads) to proxy them.
+    const uploadsProxy = process.env.UPLOADS_PROXY_URL?.replace(/\/+$/, '');
     return [
       {
         source: '/uploads/:path*',
-        destination:
-          process.env.STORAGE_PROVIDER === 'local'
-            ? '/api/uploads/:path*'
-            : '/404',
+        destination: uploadsProxy
+          ? `${uploadsProxy}/:path*`
+          : process.env.STORAGE_PROVIDER === 'local'
+          ? '/api/uploads/:path*'
+          : '/404',
       },
     ];
   },

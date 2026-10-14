@@ -1,0 +1,6 @@
+# HTTPS for the API domain (certificate is obtained automatically).
+# The Postiz container serves the API under /api and uploaded files under /uploads.
+{$API_DOMAIN} {
+	encode gzip
+	reverse_proxy postiz:5000
+}
