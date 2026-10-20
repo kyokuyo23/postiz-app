@@ -1,0 +1,21 @@
+# API domain for docker-compose.vps-small.yaml.
+# /api/*     -> backend (prefix stripped, as nginx does in the full image)
+# /uploads/* -> uploaded files from the shared volume
+{$API_DOMAIN} {
+	encode gzip
+
+	handle_path /api/* {
+		reverse_proxy postiz:3000
+	}
+
+	handle_path /uploads/* {
+		root * /uploads
+		header X-Content-Type-Options nosniff
+		header Content-Security-Policy "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'none'; script-src 'none'; frame-ancestors 'none'; sandbox"
+		file_server
+	}
+
+	handle {
+		respond "Postiz API" 200
+	}
+}
