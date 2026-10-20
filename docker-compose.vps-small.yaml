@@ -1,0 +1,111 @@
+# Backend stack for a small VPS (2 vCPU / 2 GB RAM) with the frontend on Vercel.
+# Differences from docker-compose.backend.yaml, to save memory:
+#   - backend + orchestrator only image (Dockerfile.backend), no bundled frontend/nginx
+#   - one PostgreSQL server shared by Postiz and Temporal
+#   - Temporal uses SQL visibility (no Elasticsearch)
+#   - Caddy serves uploaded files directly
+#
+# Usage: see docs/deploy/backend-vm.md ("VPS 2 GB")
+#   docker build -f Dockerfile.backend -t postiz-backend:local .
+#   docker compose -f docker-compose.vps-small.yaml --env-file backend.env up -d
+
+services:
+  postiz:
+    image: postiz-backend:local
+    container_name: postiz
+    restart: always
+    env_file: backend.env
+    environment:
+      DATABASE_URL: 'postgresql://postiz-user:${POSTGRES_PASSWORD}@postgres:5432/postiz-db'
+      REDIS_URL: 'redis://redis:6379'
+      TEMPORAL_ADDRESS: 'temporal:7233'
+      STORAGE_PROVIDER: 'local'
+      UPLOAD_DIRECTORY: '/uploads'
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: '/uploads'
+      IS_GENERAL: 'true'
+      PORT: '3000'
+    volumes:
+      - postiz-uploads:/uploads/
+    expose:
+      - '3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: always
+    environment:
+      API_DOMAIN: '${API_DOMAIN}'
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile.vps-small:/etc/caddy/Caddyfile:ro
+      - postiz-uploads:/uploads:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - postiz
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
+      POSTGRES_USER: postiz-user
+      POSTGRES_DB: postiz-db
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postiz-user -d postiz-db
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7.2
+    container_name: redis
+    restart: always
+    command: ['redis-server', '--maxmemory', '128mb', '--maxmemory-policy', 'noeviction']
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - redis-data:/data
+
+  temporal:
+    image: temporalio/auto-setup:1.28.1
+    container_name: temporal
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=postiz-user
+      - POSTGRES_PWD=${POSTGRES_PASSWORD}
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_ES=false
+      - TEMPORAL_NAMESPACE=default
+    expose:
+      - 7233
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+volumes:
+  postgres-volume:
+  redis-data:
+  postiz-uploads:
+  caddy-data:
+  caddy-config:
