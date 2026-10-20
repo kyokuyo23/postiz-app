@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# One-shot setup for the small-VPS backend (docker-compose.vps-small.yaml).
+# Run as root:  curl -fsSL https://raw.githubusercontent.com/kyokuyo23/postiz-app/main/var/docker/vps-setup.sh | sudo bash
+# Safe to re-run: it skips steps that are already done and never overwrites backend.env.
+set -euo pipefail
+
+DIR=/opt/postiz-app
+REPO=https://github.com/kyokuyo23/postiz-app.git
+
+echo "==> 1/5 Swap (4 GB)"
+if ! swapon --show | grep -q '/swapfile'; then
+  fallocate -l 4G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+echo "==> 2/5 Docker"
+if ! command -v docker >/dev/null 2>&1; then
+  curl -fsSL https://get.docker.com | sh
+fi
+id ubuntu >/dev/null 2>&1 && usermod -aG docker ubuntu || true
+
+echo "==> 3/5 Code"
+if [ -d "$DIR/.git" ]; then
+  git -C "$DIR" pull --ff-only
+else
+  git clone "$REPO" "$DIR"
+fi
+cd "$DIR"
+
+echo "==> 4/5 Build image (this takes 20-40 minutes)"
+docker build -f Dockerfile.backend -t postiz-backend:local .
+
+echo "==> 5/5 Configure and start"
+if [ ! -f backend.env ]; then
+  cp backend.env.example backend.env
+  sed -i "s/^JWT_SECRET=$/JWT_SECRET=$(openssl rand -hex 32)/" backend.env
+  sed -i "s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" backend.env
+  sed -i "s/^TEMPORAL_DB_PASSWORD=$/TEMPORAL_DB_PASSWORD=$(openssl rand -hex 24)/" backend.env
+  chmod 600 backend.env
+fi
+docker compose -f docker-compose.vps-small.yaml --env-file backend.env up -d
+
+echo
+echo "Done. Containers:"
+docker compose -f docker-compose.vps-small.yaml ps
+echo
+echo "Logs:  cd $DIR && sudo docker compose -f docker-compose.vps-small.yaml logs -f postiz"
+echo "Check: https://\$(grep ^API_DOMAIN backend.env | cut -d= -f2)/  should show 'Postiz API'"
