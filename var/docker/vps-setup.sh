@@ -53,7 +53,7 @@ docker compose -f docker-compose.vps-small.yaml --env-file backend.env up -d
 
 echo
 echo "Done. Containers:"
-docker compose -f docker-compose.vps-small.yaml ps
+docker compose -f docker-compose.vps-small.yaml --env-file backend.env ps
 echo
-echo "Logs:  cd $DIR && sudo docker compose -f docker-compose.vps-small.yaml logs -f postiz"
+echo "Logs:  cd $DIR && sudo docker compose -f docker-compose.vps-small.yaml --env-file backend.env logs -f postiz"
 echo "Check: https://\$(grep ^API_DOMAIN backend.env | cut -d= -f2)/  should show 'Postiz API'"
