@@ -9,14 +9,16 @@ set -euo pipefail
 DIR=/opt/postiz-app
 REPO=https://github.com/kyokuyo23/postiz-app.git
 
-echo "==> 1/5 Swap (4 GB)"
-if ! swapon --show | grep -q '/swapfile'; then
-  fallocate -l 4G /swapfile
-  chmod 600 /swapfile
-  mkswap /swapfile
-  swapon /swapfile
+echo "==> 1/5 Swap (6 GB total; the TypeScript build needs ~3 GB)"
+if ! swapon --show | grep -q '/swapfile '; then
+  fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
+if ! swapon --show | grep -q '/swapfile2'; then
+  fallocate -l 2G /swapfile2 && chmod 600 /swapfile2 && mkswap /swapfile2 && swapon /swapfile2
+  grep -q '^/swapfile2 ' /etc/fstab || echo '/swapfile2 none swap sw 0 0' >> /etc/fstab
+fi
+free -h
 
 echo "==> 2/5 Docker"
 if ! command -v docker >/dev/null 2>&1; then
