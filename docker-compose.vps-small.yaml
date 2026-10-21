@@ -97,6 +97,9 @@ services:
       - POSTGRES_SEEDS=postgres
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=false
+      # SQL visibility allows only 3 Text search attributes; auto-setup's sample
+      # attributes would use 2 of them and Postiz needs 2 (organizationId, postId).
+      - SKIP_ADD_CUSTOM_SEARCH_ATTRIBUTES=true
       - TEMPORAL_NAMESPACE=default
     expose:
       - 7233
