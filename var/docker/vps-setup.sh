@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # One-shot setup for the small-VPS backend (docker-compose.vps-small.yaml).
-# Run as root:  curl -fsSL https://raw.githubusercontent.com/kyokuyo23/postiz-app/main/var/docker/vps-setup.sh | sudo bash
+# Run as root, ideally inside tmux so a dropped SSH session does not stop it:
+#   tmux new -s setup
+#   curl -fsSL https://raw.githubusercontent.com/kyokuyo23/postiz-app/main/var/docker/vps-setup.sh | sudo bash
 # Safe to re-run: it skips steps that are already done and never overwrites backend.env.
 set -euo pipefail
 
@@ -23,10 +25,14 @@ fi
 id ubuntu >/dev/null 2>&1 && usermod -aG docker ubuntu || true
 
 echo "==> 3/5 Code"
+# A clone interrupted by a dropped connection leaves a broken repo: start over.
+if [ -d "$DIR" ] && ! git -C "$DIR" rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  rm -rf "$DIR"
+fi
 if [ -d "$DIR/.git" ]; then
   git -C "$DIR" pull --ff-only
 else
-  git clone "$REPO" "$DIR"
+  git clone --depth 1 "$REPO" "$DIR"
 fi
 cd "$DIR"
 
