@@ -18,9 +18,9 @@ WORKDIR /app
 COPY . /app
 
 RUN pnpm install --frozen-lockfile
-# Lower heap than the full image so it fits a 2 GB VPS with swap
-RUN NODE_OPTIONS="--max-old-space-size=1536" pnpm run build:backend \
- && NODE_OPTIONS="--max-old-space-size=1536" pnpm run build:orchestrator
+# tsc needs ~3 GB here; on a 2 GB VPS this relies on swap (vps-setup.sh makes 6 GB)
+RUN NODE_OPTIONS="--max-old-space-size=3584" pnpm run build:backend \
+ && NODE_OPTIONS="--max-old-space-size=3584" pnpm run build:orchestrator
 
 COPY var/docker/start-backend.sh /usr/local/bin/start-backend.sh
 RUN chmod +x /usr/local/bin/start-backend.sh
