@@ -26,6 +26,8 @@ services:
       PORT: '3000'
     volumes:
       - postiz-uploads:/uploads/
+      # Start script from the checkout, so `git pull` updates it without a rebuild
+      - ./var/docker/start-backend.sh:/usr/local/bin/start-backend.sh:ro
     expose:
       - '3000'
     depends_on:
