@@ -21,6 +21,7 @@ const mcpClients = [
   'Codex',
   'Gemini CLI',
   'Warp',
+  'Hermes Agent',
 ] as const;
 
 type McpClient = (typeof mcpClients)[number];
@@ -82,6 +83,11 @@ const getMcpConfig = (
         return {
           config: json({ postiz: { url: urlWithKey } }),
           hint: 'Settings > MCP Servers > + Add, then paste this config.',
+        };
+      case 'Hermes Agent':
+        return {
+          config: `# ~/.hermes/config.yaml\n\nmcp_servers:\n  postiz:\n    url: "${urlWithKey}"`,
+          hint: 'Add to ~/.hermes/config.yaml, then run: hermes mcp test postiz',
         };
     }
   }
@@ -155,6 +161,11 @@ const getMcpConfig = (
           postiz: { url: urlBase, headers: { Authorization: bearer } },
         }),
         hint: 'Settings > MCP Servers > + Add, then paste this config.',
+      };
+    case 'Hermes Agent':
+      return {
+        config: `# ~/.hermes/config.yaml\n\nmcp_servers:\n  postiz:\n    url: "${urlBase}"\n    headers:\n      Authorization: "${bearer}"`,
+        hint: 'Add to ~/.hermes/config.yaml, then run: hermes mcp test postiz',
       };
   }
 };
