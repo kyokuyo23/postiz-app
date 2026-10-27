@@ -41,6 +41,18 @@ ask_pair() {
   echo "   saved (id length ${#id}, secret length ${#secret})"
 }
 
+ask_secret() {
+  local label="$1" key="$2" value
+  echo
+  echo "== $label  (Enter to skip)"
+  read -r -s -u 3 -p "   $key (hidden): " value
+  echo
+  [ -z "$value" ] && { echo "   skipped"; return; }
+  set_kv "$key" "$value"
+  CHANGED+=("$label")
+  echo "   saved (length ${#value})"
+}
+
 echo "Redirect URI for every platform: https://<app domain>/integrations/social/<platform>"
 ask_pair "YouTube"                    YOUTUBE_CLIENT_ID   YOUTUBE_CLIENT_SECRET
 ask_pair "Threads"                    THREADS_APP_ID      THREADS_APP_SECRET
@@ -50,6 +62,8 @@ ask_pair "TikTok"                     TIKTOK_CLIENT_ID    TIKTOK_CLIENT_SECRET
 ask_pair "LinkedIn"                   LINKEDIN_CLIENT_ID  LINKEDIN_CLIENT_SECRET
 ask_pair "X (Twitter)"                X_API_KEY           X_API_SECRET
 ask_pair "Pinterest"                  PINTEREST_CLIENT_ID PINTEREST_CLIENT_SECRET
+ask_secret "AI: Claude (Anthropic) - text AI features" ANTHROPIC_API_KEY
+ask_secret "AI: OpenAI - image generation (optional)"  OPENAI_API_KEY
 
 if [ ${#CHANGED[@]} -eq 0 ]; then
   echo; echo "Nothing changed."; exit 0

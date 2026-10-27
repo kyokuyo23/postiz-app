@@ -6,7 +6,7 @@ import { END, START, StateGraph } from '@langchain/langgraph';
 import { AutoPost, Integration } from '@prisma/client';
 import { BaseMessage } from '@langchain/core/messages';
 import striptags from 'striptags';
-import { ChatOpenAI, DallEAPIWrapper } from '@langchain/openai';
+import { DallEAPIWrapper } from '@langchain/openai';
 import { JSDOM } from 'jsdom';
 import { z } from 'zod';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -19,6 +19,7 @@ import { TypedSearchAttributes } from '@temporalio/common';
 import {
   organizationId,
 } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
+import { langchainChatModel, isImageAiConfigured } from '@gitroom/nestjs-libraries/ai/ai.provider';
 const parser = new Parser();
 
 interface WorkflowChannelsState {
@@ -35,11 +36,8 @@ interface WorkflowChannelsState {
   };
 }
 
-const model = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-  model: 'gpt-4.1',
-  temperature: 0.7,
-});
+// Claude when ANTHROPIC_API_KEY is set, otherwise OpenAI (see ai.provider)
+const model = langchainChatModel('gpt-4.1', { temperature: 0.7 });
 
 const dalle = new DallEAPIWrapper({
   apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
@@ -242,6 +240,10 @@ export class AutopostService {
   }
 
   async generatePicture(state: WorkflowChannelsState) {
+    // Image generation needs OpenAI; without it the post is created text-only.
+    if (!isImageAiConfigured()) {
+      return { ...state };
+    }
     const structuredOutput = model.withStructuredOutput(dallePrompt);
     const { generatedTextToBeSentToDallE } =
       await ChatPromptTemplate.fromTemplate(
