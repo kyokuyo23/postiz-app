@@ -217,6 +217,14 @@ const ProductForm: FC<{
   );
 };
 
+export const useAffiliateTabs = () => {
+  const t = useT();
+  return [
+    { label: t('affiliate_catalog', 'Katalog'), href: '/affiliate' },
+    { label: t('affiliate_shopee_research', 'Riset Shopee'), href: '/affiliate/shopee' },
+  ];
+};
+
 export const AffiliateProducts: FC = () => {
   const t = useT();
   const fetch = useFetch();
@@ -225,6 +233,7 @@ export const AffiliateProducts: FC = () => {
   const [search, setSearch] = useState('');
   const { data, mutate, isLoading } = useAffiliateProducts(search);
   const { data: integrations } = useIntegrationsForEditor();
+  const tabs = useAffiliateTabs();
 
   const openForm = useCallback(
     (product?: AffiliateProduct) => () => {
@@ -321,6 +330,7 @@ export const AffiliateProducts: FC = () => {
         'affiliate_description',
         'Simpan produk affiliate, lalu buat postingan promosi (caption, foto, link) atau video AI untuk semua channel.'
       )}
+      tabs={tabs}
       actions={
         <SmallButton variant="primary" onClick={openForm()}>
           {t('affiliate_add', 'Tambah produk affiliate')}
@@ -367,6 +377,11 @@ export const AffiliateProducts: FC = () => {
                   </span>
                   {product.price && <span>{product.price}</span>}
                 </div>
+                {product.commission && (
+                  <div className="text-[12px] text-green-500">
+                    {t('affiliate_commission', 'Komisi')}: {product.commission}
+                  </div>
+                )}
                 <a
                   href={product.link}
                   target="_blank"

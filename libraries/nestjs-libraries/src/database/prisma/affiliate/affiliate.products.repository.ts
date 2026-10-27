@@ -35,9 +35,25 @@ export class AffiliateProductsRepository {
     });
   }
 
-  create(orgId: string, body: AffiliateProductDto) {
+  create(
+    orgId: string,
+    body: AffiliateProductDto,
+    extra: { commission?: string; source?: string; externalId?: string } = {}
+  ) {
     return this._product.model.affiliateProduct.create({
-      data: { organizationId: orgId, ...fields(body) },
+      data: {
+        organizationId: orgId,
+        ...fields(body),
+        commission: extra.commission || null,
+        source: extra.source || null,
+        externalId: extra.externalId || null,
+      },
+    });
+  }
+
+  findByExternal(orgId: string, source: string, externalId: string) {
+    return this._product.model.affiliateProduct.findFirst({
+      where: { organizationId: orgId, source, externalId, deletedAt: null },
     });
   }
 

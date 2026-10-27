@@ -27,6 +27,7 @@ const view = (p: {
   imageId: string | null;
   imagePath: string | null;
   notes: string | null;
+  commission?: string | null;
 }) => ({
   id: p.id,
   name: p.name,
@@ -35,6 +36,7 @@ const view = (p: {
   link: p.link,
   image: p.imagePath ? { id: p.imageId, path: p.imagePath } : null,
   notes: p.notes,
+  commission: p.commission || null,
 });
 
 @Injectable()
@@ -110,4 +112,87 @@ export class AffiliateProductCreateTool implements AgentToolInterface {
   }
 }
 
-export const affiliateTools = [AffiliateProductsListTool, AffiliateProductCreateTool];
+@Injectable()
+export class ShopeeOffersSearchTool implements AgentToolInterface {
+  constructor(private _products: AffiliateProductsService) {}
+  name = 'shopeeOffersSearch';
+
+  run() {
+    return createTool({
+      id: 'shopeeOffersSearch',
+      description: `Researches Shopee Affiliate products (Indonesia) through the user's Shopee Affiliate Open API: search by keyword, list trending (top performing) products, sort by sales or commission, or keep only offers with extra seller commission (XTRA). Returns name, price, sales, rating, commission rates (fractions, 0.1 = 10%) and itemId. Use shopeeOfferImport to add a product to the catalog before posting it.`,
+      inputSchema: z.object({
+        keyword: z.string().max(100).optional(),
+        trending: z.boolean().optional().describe('Only top performing products'),
+        sort: z
+          .enum(['relevance', 'sales', 'commission', 'price_asc', 'price_desc'])
+          .optional(),
+        extraOnly: z
+          .boolean()
+          .optional()
+          .describe('Only offers with extra seller commission (XTRA)'),
+        page: z.number().int().min(1).max(50).optional(),
+      }),
+      mcp: {
+        annotations: {
+          title: 'Search Shopee Affiliate Products',
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+      },
+      outputSchema: z.object({ output: z.any() }),
+      execute: async (inputData, context) => {
+        orgIdFrom(inputData, context);
+        const result = await this._products.shopeeOffers({
+          keyword: inputData.keyword,
+          trending: inputData.trending,
+          sort: inputData.sort,
+          extraOnly: inputData.extraOnly,
+          page: inputData.page,
+          limit: 20,
+        });
+        return { output: result };
+      },
+    });
+  }
+}
+
+@Injectable()
+export class ShopeeOfferImportTool implements AgentToolInterface {
+  constructor(private _products: AffiliateProductsService) {}
+  name = 'shopeeOfferImport';
+
+  run() {
+    return createTool({
+      id: 'shopeeOfferImport',
+      description: `Adds a Shopee Affiliate product (by itemId from shopeeOffersSearch) to the user's affiliate catalog with its affiliate short link, price and photo copied into the media library. Returns the catalog product, including image { id, path } to attach to posts. Importing the same item twice returns the existing product.`,
+      inputSchema: z.object({
+        itemId: z.string().regex(/^\d{1,19}$/),
+      }),
+      mcp: {
+        annotations: {
+          title: 'Import Shopee Product',
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+      },
+      outputSchema: z.object({ output: z.any() }),
+      execute: async (inputData, context) => {
+        const orgId = orgIdFrom(inputData, context);
+        const product = await this._products.importShopee(orgId, inputData.itemId);
+        return { output: view(product) };
+      },
+    });
+  }
+}
+
+export const affiliateTools = [
+  AffiliateProductsListTool,
+  AffiliateProductCreateTool,
+  ShopeeOffersSearchTool,
+  ShopeeOfferImportTool,
+];
