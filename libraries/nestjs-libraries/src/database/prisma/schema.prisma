@@ -48,6 +48,7 @@ model Organization {
   commentAutomations  CommentAutomation[]
   commentTemplates    CommentAutomationTemplate[]
   commentLogs         CommentAutomationLog[]
+  affiliateProducts   AffiliateProduct[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1088,4 +1089,23 @@ model CommentAutomationLog {
 
   @@index([organizationId, createdAt])
   @@index([commentId])
+}
+
+model AffiliateProduct {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  price          String?
+  marketplace    String       @default("other")
+  link           String
+  imageId        String?
+  imagePath      String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([deletedAt])
 }

@@ -29,6 +29,7 @@ import { SignatureController } from '@gitroom/backend/api/routes/signature.contr
 import { AutopostController } from '@gitroom/backend/api/routes/autopost.controller';
 import { EngagementController } from '@gitroom/backend/api/routes/engagement.controller';
 import { CommentAutomationsController } from '@gitroom/backend/api/routes/comment.automations.controller';
+import { AffiliateProductsController } from '@gitroom/backend/api/routes/affiliate.products.controller';
 import { SetsController } from '@gitroom/backend/api/routes/sets.controller';
 import { ThirdPartyController } from '@gitroom/backend/api/routes/third-party.controller';
 import { MonitorController } from '@gitroom/backend/api/routes/monitor.controller';
@@ -61,6 +62,7 @@ const authenticatedController = [
   AutopostController,
   EngagementController,
   CommentAutomationsController,
+  AffiliateProductsController,
   SetsController,
   ThirdPartyController,
   OAuthAppController,
