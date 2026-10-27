@@ -64,6 +64,7 @@ ask_pair "X (Twitter)"                X_API_KEY           X_API_SECRET
 ask_pair "Pinterest"                  PINTEREST_CLIENT_ID PINTEREST_CLIENT_SECRET
 ask_secret "AI: Claude (Anthropic) - text AI features" ANTHROPIC_API_KEY
 ask_secret "AI: OpenAI - image generation (optional)"  OPENAI_API_KEY
+ask_secret "AI video: Veo3 via kie.ai (optional)"       KIEAI_API_KEY
 
 if [ ${#CHANGED[@]} -eq 0 ]; then
   echo; echo "Nothing changed."; exit 0

@@ -31,6 +31,8 @@ import { AutopostRepository } from '@gitroom/nestjs-libraries/database/prisma/au
 import { AutopostService } from '@gitroom/nestjs-libraries/database/prisma/autopost/autopost.service';
 import { CommentsRepository } from '@gitroom/nestjs-libraries/database/prisma/comments/comments.repository';
 import { CommentsService } from '@gitroom/nestjs-libraries/database/prisma/comments/comments.service';
+import { AffiliateProductsRepository } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.repository';
+import { AffiliateProductsService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.service';
 import { CommentAutomationsRepository } from '@gitroom/nestjs-libraries/database/prisma/comments/comment.automations.repository';
 import { CommentAutomationsService } from '@gitroom/nestjs-libraries/database/prisma/comments/comment.automations.service';
 import { SetsService } from '@gitroom/nestjs-libraries/database/prisma/sets/sets.service';
@@ -79,6 +81,8 @@ import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/adm
     CommentsService,
     CommentAutomationsRepository,
     CommentAutomationsService,
+    AffiliateProductsRepository,
+    AffiliateProductsService,
     SignatureService,
     MediaService,
     MediaRepository,

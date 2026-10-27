@@ -9,6 +9,7 @@ import { IntegrationListTool } from '@gitroom/nestjs-libraries/chat/tools/integr
 import { GroupListTool } from '@gitroom/nestjs-libraries/chat/tools/group.list.tool';
 import { UploadFromUrlTool } from '@gitroom/nestjs-libraries/chat/tools/upload.from.url.tool';
 import { engagementTools } from '@gitroom/nestjs-libraries/chat/tools/engagement.tools';
+import { affiliateTools } from '@gitroom/nestjs-libraries/chat/tools/affiliate.tools';
 
 export const toolList = [
   IntegrationListTool,
@@ -22,4 +23,5 @@ export const toolList = [
   GenerateImageTool,
   UploadFromUrlTool,
   ...engagementTools,
+  ...affiliateTools,
 ];

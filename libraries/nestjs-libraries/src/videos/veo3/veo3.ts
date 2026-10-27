@@ -63,7 +63,13 @@ export class Veo3 extends VideoAbstract<Veo3Params> {
 
     const taskId = value.data.taskId;
     let videoUrl = [];
+    // Veo usually finishes in 1-3 minutes; give up after 15 so a stuck or
+    // failed task cannot keep the request (and a video credit) forever.
+    const deadline = Date.now() + 15 * 60 * 1000;
     while (videoUrl.length === 0) {
+      if (Date.now() > deadline) {
+        throw new Error('Video generation timed out');
+      }
       console.log('waiting for video to be ready');
       const data = await (
         await fetch(
@@ -81,7 +87,19 @@ export class Veo3 extends VideoAbstract<Veo3Params> {
         throw new Error(`Failed to get video info`);
       }
 
+      // successFlag: 0 generating, 1 success, 2/3 failed
+      if ([2, 3].includes(Number(data?.data?.successFlag))) {
+        throw new Error(
+          `Video generation failed${
+            data?.data?.errorMessage ? `: ${data.data.errorMessage}` : ''
+          }`
+        );
+      }
+
       videoUrl = data?.data?.response?.resultUrls || [];
+      if (videoUrl.length) {
+        break;
+      }
       await timer(10000);
     }
 
