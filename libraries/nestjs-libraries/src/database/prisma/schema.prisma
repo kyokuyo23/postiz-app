@@ -1101,6 +1101,9 @@ model AffiliateProduct {
   imageId        String?
   imagePath      String?
   notes          String?
+  commission     String?
+  source         String?
+  externalId     String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?

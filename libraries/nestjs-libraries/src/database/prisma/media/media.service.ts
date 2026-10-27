@@ -52,6 +52,12 @@ export class MediaService {
     return generating;
   }
 
+  /** Downloads a public https image/video into the media library. */
+  async importFromUrl(org: string, url: string, originalName?: string) {
+    const file = await this.storage.uploadSimple(url);
+    return this.saveFile(org, file.split('/').pop()!, file, originalName);
+  }
+
   saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
     return this._mediaRepository.saveFile(org, fileName, filePath, originalName);
   }

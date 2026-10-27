@@ -25,8 +25,83 @@ export interface AffiliateProduct {
   imageId: string | null;
   imagePath: string | null;
   notes: string | null;
+  commission: string | null;
+  source: string | null;
   createdAt: string;
 }
+
+export interface ShopeeOffer {
+  itemId: string;
+  name: string;
+  imageUrl: string | null;
+  priceMin: number | null;
+  priceMax: number | null;
+  sales: number;
+  rating: number | null;
+  commissionRate: number;
+  sellerCommissionRate: number;
+  shopeeCommissionRate: number;
+  commission: number | null;
+  offerLink: string;
+  productLink: string | null;
+  shopName: string | null;
+}
+
+export type ShopeeSort =
+  | 'relevance'
+  | 'sales'
+  | 'commission'
+  | 'price_asc'
+  | 'price_desc';
+
+export interface ShopeeFilter {
+  keyword: string;
+  sort: ShopeeSort;
+  trending: boolean;
+  extra: boolean;
+  page: number;
+}
+
+export const useShopeeStatus = () => {
+  const fetch = useFetch();
+  const load = useCallback(async () => {
+    return (await (
+      await fetch('/affiliate/products/shopee/status')
+    ).json()) as { configured: boolean };
+  }, [fetch]);
+  return useSWR('affiliate-shopee-status', load);
+};
+
+export const useShopeeOffers = (filter: ShopeeFilter, enabled: boolean) => {
+  const fetch = useFetch();
+  const params = new URLSearchParams();
+  if (filter.keyword.trim()) params.set('keyword', filter.keyword.trim());
+  params.set('sort', filter.sort);
+  if (filter.trending) params.set('trending', 'true');
+  if (filter.extra) params.set('extra', 'true');
+  params.set('page', String(filter.page));
+  const query = params.toString();
+  const load = useCallback(async () => {
+    const res = await fetch(`/affiliate/products/shopee/offers?${query}`);
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(
+        (Array.isArray(body?.message) ? body.message.join(', ') : body?.message) ||
+          'Shopee API error'
+      );
+    }
+    return body as { offers: ShopeeOffer[]; hasNextPage: boolean; page: number };
+  }, [fetch, query]);
+  return useSWR(enabled ? `affiliate-shopee-${query}` : null, load, {
+    revalidateOnFocus: false,
+  });
+};
+
+export const rupiah = (value: number | null) =>
+  value === null ? '' : `Rp ${Math.round(value).toLocaleString('id-ID')}`;
+
+export const pct = (rate: number) =>
+  `${(rate * 100).toFixed(rate * 100 < 10 ? 1 : 0).replace(/\.0$/, '')}%`;
 
 export const marketplaceLabel = (value: string) =>
   MARKETPLACES.find((m) => m.value === value)?.label || 'Lainnya';

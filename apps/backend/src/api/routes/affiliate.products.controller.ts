@@ -12,7 +12,11 @@ import { ApiTags } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { AffiliateProductsService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.service';
-import { AffiliateProductDto } from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
+import {
+  AffiliateProductDto,
+  ShopeeImportDto,
+  ShopeeOffersQueryDto,
+} from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
 
 @ApiTags('Affiliate')
 @Controller('/affiliate/products')
@@ -25,6 +29,30 @@ export class AffiliateProductsController {
     @Query('search') search?: string
   ) {
     return this._productsService.list(org.id, search);
+  }
+
+  @Get('/shopee/status')
+  shopeeStatus() {
+    return this._productsService.shopeeStatus();
+  }
+
+  @Get('/shopee/offers')
+  shopeeOffers(@Query() query: ShopeeOffersQueryDto) {
+    return this._productsService.shopeeOffers({
+      keyword: query.keyword,
+      sort: query.sort,
+      trending: query.trending === 'true',
+      extraOnly: query.extra === 'true',
+      page: query.page,
+    });
+  }
+
+  @Post('/shopee/import')
+  shopeeImport(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: ShopeeImportDto
+  ) {
+    return this._productsService.importShopee(org.id, body.itemId);
   }
 
   @Post('/')
