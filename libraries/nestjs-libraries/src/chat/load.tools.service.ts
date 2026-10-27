@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import {
+  aiProvider,
+  claudeModel,
+} from '@gitroom/nestjs-libraries/ai/ai.provider';
 import { Memory } from '@mastra/memory';
 import { pStore } from '@gitroom/nestjs-libraries/chat/mastra.store';
 import { array, object, string } from 'zod';
@@ -87,7 +92,13 @@ export class LoadToolsService {
       )}
 `;
       },
-      model: openai('gpt-5.2'),
+      // Claude when ANTHROPIC_API_KEY is set, otherwise OpenAI (see ai.provider)
+      model:
+        aiProvider() === 'anthropic'
+          ? createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })(
+              claudeModel()
+            )
+          : openai('gpt-5.2'),
       tools,
       memory: new Memory({
         storage: pStore,

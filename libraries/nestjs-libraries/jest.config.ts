@@ -6,6 +6,7 @@ export default {
   testMatch: [
     '<rootDir>/src/security/__tests__/**/*.spec.ts',
     '<rootDir>/src/comments/__tests__/**/*.spec.ts',
+    '<rootDir>/src/ai/__tests__/**/*.spec.ts',
   ],
   moduleNameMapper: {
     '^@gitroom/nestjs-libraries/(.*)$': '<rootDir>/src/$1',

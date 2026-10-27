@@ -11,6 +11,7 @@ import {
 import {
   CopilotRuntime,
   OpenAIAdapter,
+  AnthropicAdapter,
   copilotRuntimeNodeHttpEndpoint,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from '@copilotkit/runtime';
@@ -23,6 +24,16 @@ import { Request, Response } from 'express';
 import { RequestContext } from '@mastra/core/di';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import {
+  aiProvider,
+  claudeModel,
+} from '@gitroom/nestjs-libraries/ai/ai.provider';
+
+/** Claude when ANTHROPIC_API_KEY is set, otherwise OpenAI (see ai.provider). */
+const serviceAdapter = () =>
+  aiProvider() === 'anthropic'
+    ? new AnthropicAdapter({ model: claudeModel() })
+    : new OpenAIAdapter({ model: 'gpt-4.1' });
 
 export type ChannelsContext = {
   integrations: string;
@@ -38,20 +49,17 @@ export class CopilotController {
   ) {}
   @Post('/chat')
   chatAgent(@Req() req: Request, @Res() res: Response) {
-    if (
-      process.env.OPENAI_API_KEY === undefined ||
-      process.env.OPENAI_API_KEY === ''
-    ) {
-      Logger.warn('OpenAI API key not set, chat functionality will not work');
+    if (!aiProvider()) {
+      Logger.warn(
+        'No AI key set (ANTHROPIC_API_KEY or OPENAI_API_KEY), chat functionality will not work'
+      );
       return;
     }
 
     const copilotRuntimeHandler = copilotRuntimeNodeHttpEndpoint({
       endpoint: '/copilot/chat',
       runtime: new CopilotRuntime(),
-      serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
-      }),
+      serviceAdapter: serviceAdapter(),
     });
 
     return copilotRuntimeHandler(req, res);
@@ -64,11 +72,10 @@ export class CopilotController {
     @Res() res: Response,
     @GetOrgFromRequest() organization: Organization
   ) {
-    if (
-      process.env.OPENAI_API_KEY === undefined ||
-      process.env.OPENAI_API_KEY === ''
-    ) {
-      Logger.warn('OpenAI API key not set, chat functionality will not work');
+    if (!aiProvider()) {
+      Logger.warn(
+        'No AI key set (ANTHROPIC_API_KEY or OPENAI_API_KEY), chat functionality will not work'
+      );
       return;
     }
     const mastra = await this._mastraService.mastra();
@@ -95,9 +102,7 @@ export class CopilotController {
       endpoint: '/copilot/agent',
       runtime,
       // properties: req.body.variables.properties,
-      serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
-      }),
+      serviceAdapter: serviceAdapter(),
     });
 
     return copilotRuntimeHandler.handleRequest(req, res);
