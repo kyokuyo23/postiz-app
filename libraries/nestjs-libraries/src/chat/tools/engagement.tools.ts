@@ -302,6 +302,43 @@ export class AutomationSetActiveTool implements AgentToolInterface {
   }
 }
 
+@Injectable()
+export class ContentResearchTool implements AgentToolInterface {
+  constructor(private _comments: CommentsService) {}
+  name = 'contentResearch';
+
+  run() {
+    return createTool({
+      id: 'contentResearch',
+      description: `Searches public content on a connected channel's platform by keyword (YouTube videos, Threads posts when keyword search is enabled) to find trending topics, competitors and content ideas. Use a channel id from engagementChannels where canResearch is true.`,
+      inputSchema: z.object({
+        integrationId: z.string().describe('Channel id from engagementChannels'),
+        query: z.string().min(2).max(100).describe('Keyword or topic'),
+      }),
+      mcp: {
+        annotations: {
+          title: 'Research Content',
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+      },
+      outputSchema: anyOutput,
+      execute: async (inputData, context) => {
+        const orgId = orgIdFrom(inputData, context);
+        return {
+          output: await this._comments.research(
+            orgId,
+            inputData.integrationId,
+            inputData.query
+          ),
+        };
+      },
+    });
+  }
+}
+
 export const engagementTools = [
   EngagementChannelsTool,
   CommentsListTool,
@@ -311,4 +348,5 @@ export const engagementTools = [
   CommentsSyncNowTool,
   AutomationsListTool,
   AutomationSetActiveTool,
+  ContentResearchTool,
 ];
