@@ -10,6 +10,10 @@ import { GroupListTool } from '@gitroom/nestjs-libraries/chat/tools/group.list.t
 import { UploadFromUrlTool } from '@gitroom/nestjs-libraries/chat/tools/upload.from.url.tool';
 import { engagementTools } from '@gitroom/nestjs-libraries/chat/tools/engagement.tools';
 import { affiliateTools } from '@gitroom/nestjs-libraries/chat/tools/affiliate.tools';
+import { PostsListTool } from '@gitroom/nestjs-libraries/chat/tools/posts.list.tool';
+import { DeletePostTool } from '@gitroom/nestjs-libraries/chat/tools/delete.post.tool';
+import { PostSettingsTool } from '@gitroom/nestjs-libraries/chat/tools/post.settings.tool';
+import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.tool';
 
 export const toolList = [
   IntegrationListTool,
@@ -22,6 +26,10 @@ export const toolList = [
   GenerateVideoTool,
   GenerateImageTool,
   UploadFromUrlTool,
+  PostsListTool,
+  DeletePostTool,
+  PostSettingsTool,
+  MediaListTool,
   ...engagementTools,
   ...affiliateTools,
 ];

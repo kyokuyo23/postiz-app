@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  NotFoundException,
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
@@ -931,6 +932,122 @@ export class PostsService {
     }
 
     return postList;
+  }
+
+  /**
+   * Updates only the provider settings of a scheduled (not yet published) or
+   * draft post, keeping its content, media and publish date. Ported from
+   * upstream Postiz for the MCP postSettingsTool.
+   */
+  async updatePostSettings(
+    orgId: string,
+    postId: string,
+    settings: Record<string, any>,
+    creationMethod: CreationMethod
+  ): Promise<{ postId: string; publishDate: string }> {
+    const ordered = await this.getPostsRecursively(postId, true, orgId, true);
+    const [root] = ordered;
+    if (!root) {
+      throw new NotFoundException('Post not found');
+    }
+    if (root.parentPostId) {
+      throw new BadRequestException(
+        'This id belongs to a comment, pass the id of the main post'
+      );
+    }
+    if (root.state !== 'QUEUE' && root.state !== 'DRAFT') {
+      throw new BadRequestException(
+        'Only scheduled posts that were not published yet (or drafts) can be updated'
+      );
+    }
+    if (
+      root.state === 'QUEUE' &&
+      dayjs.utc(root.publishDate).isBefore(dayjs.utc())
+    ) {
+      throw new BadRequestException(
+        'The publish time of this post already passed, it cannot be updated'
+      );
+    }
+
+    const integration = (root as any).integration;
+    let existingSettings: Record<string, any>;
+    try {
+      existingSettings = JSON.parse(root.settings || '{}');
+    } catch {
+      existingSettings = {};
+    }
+    const mergedSettings = {
+      ...existingSettings,
+      ...(settings || {}),
+      __type: integration.providerIdentifier,
+    };
+
+    const value = ordered.map((p) => {
+      let image = [];
+      try {
+        image = JSON.parse(p.image || '[]');
+      } catch {
+        image = [];
+      }
+      return { id: p.id, content: p.content, delay: p.delay || 0, image };
+    });
+
+    const [validation] = await this.validatePosts(orgId, [
+      {
+        integration: { id: integration.id },
+        settings: mergedSettings,
+        value: value.map((p) => ({ content: p.content, image: p.image })),
+      },
+    ]);
+    if (validation.emptyContent) {
+      throw new BadRequestException(
+        `${validation.name}: Your post should have at least one character or one image.`
+      );
+    }
+    if (root.state !== 'DRAFT') {
+      if (!validation.valid) {
+        throw new BadRequestException(
+          `${validation.name}: ${validation.settingsError || 'Please fix your settings'}`
+        );
+      }
+      if (validation.errors !== true) {
+        throw new BadRequestException(`${validation.name}: ${validation.errors}`);
+      }
+      if (validation.tooLong) {
+        throw new BadRequestException(
+          `${validation.name}: The maximum characters is ${validation.maximumCharacters}`
+        );
+      }
+    }
+
+    const date = dayjs.utc(root.publishDate).format('YYYY-MM-DDTHH:mm:ss');
+    // type 'update' keeps the state and the running publish workflow; rows are
+    // upserted by id, so the scheduled post keeps its identity.
+    const [output] = await this.createPost(
+      orgId,
+      {
+        date,
+        type: 'update',
+        shortLink: false,
+        tags: ((root as any).tags || []).map((t: any) => ({
+          value: t.tag.name,
+          label: t.tag.name,
+        })),
+        posts: [
+          {
+            integration,
+            group: root.group,
+            settings: mergedSettings,
+            value,
+          },
+        ],
+      } as any,
+      creationMethod
+    );
+    if (!output) {
+      throw new BadRequestException('Failed to update the post');
+    }
+    return { postId: output.postId, publishDate: date };
   }
 
   async separatePosts(content: string, len: number) {
