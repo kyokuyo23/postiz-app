@@ -40,7 +40,12 @@ export class AffiliateProductsController {
     @Param('id') id: string,
     @Body() body: StoryboardRequestDto
   ) {
-    return this._videosService.storyboard(org.id, id, body.theme || 'dark');
+    return this._videosService.storyboard(
+      org.id,
+      id,
+      body.theme || 'dark',
+      body.style || 'promo'
+    );
   }
 
   @Post('/:id/videos')

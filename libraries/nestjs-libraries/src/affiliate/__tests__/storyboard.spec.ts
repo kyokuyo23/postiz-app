@@ -1,4 +1,5 @@
 import {
+  STORYBOARD_STYLES,
   normalizeStoryboard,
   storyboardDuration,
   templateStoryboard,
@@ -119,5 +120,38 @@ describe('localUploadPath', () => {
       localUploadPath('https://app.example.com/uploads/%2e%2e/%2e%2e/etc/passwd', '/uploads')
     ).toBeNull();
     expect(localUploadPath('https://evil.example.com/a.jpg', '/uploads')).toBeNull();
+  });
+});
+
+describe('content styles', () => {
+  it.each(STORYBOARD_STYLES)('%s: valid, hook first (<=3s), ends with CTA', (style) => {
+    const sb = normalizeStoryboard(templateStoryboard(product, 'dark', style), 3);
+    expect(sb.style).toBe(style);
+    expect(sb.scenes[0].kind).toBe('hook');
+    expect(sb.scenes[0].duration).toBeLessThanOrEqual(3);
+    expect(sb.scenes[sb.scenes.length - 1].kind).toBe('cta');
+    expect(sb.scenes.every((s) => s.imageIndex !== 1)).toBe(true);
+  });
+
+  it('POV hook starts with "POV:"', () => {
+    expect(templateStoryboard(product, 'dark', 'pov').scenes[0].headline).toMatch(/^POV:/);
+  });
+
+  it('review style never claims personal use', () => {
+    const text = JSON.stringify(templateStoryboard(product, 'dark', 'review'));
+    expect(text).not.toMatch(/aku (udah|sudah) (pakai|pake|coba)/i);
+  });
+
+  it('natural styles render full-screen captions without the ad card', () => {
+    const html = buildComposition(templateStoryboard(product, 'dark', 'pov'), { 0: 'img0.jpg' }, { brand: 'X' });
+    expect(html).toContain('class="clip nscene');
+    expect(html).not.toContain('class="photo');
+    expect(html).not.toContain('id="brand"');
+    expect(html).not.toContain("'#bar'");
+  });
+
+  it('defaults old storyboards without style to promo', () => {
+    const { style, ...rest } = templateStoryboard(product);
+    expect(normalizeStoryboard(rest, 3).style).toBe('promo');
   });
 });

@@ -92,6 +92,10 @@ export class StoryboardRequestDto {
   @IsOptional()
   @IsIn(['dark', 'light'])
   theme?: 'dark' | 'light';
+
+  @IsOptional()
+  @IsIn(['promo', 'pov', 'story', 'review', 'tips', 'problem'])
+  style?: 'promo' | 'pov' | 'story' | 'review' | 'tips' | 'problem';
 }
 
 export class RenderVideoDto {
