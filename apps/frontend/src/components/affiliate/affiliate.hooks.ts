@@ -66,9 +66,21 @@ export interface StoryboardScene {
   voiceover?: string;
 }
 
+export type StoryboardStyle = 'promo' | 'pov' | 'story' | 'review' | 'tips' | 'problem';
+
+export const STORYBOARD_STYLES: { value: StoryboardStyle; label: string; hint: string }[] = [
+  { value: 'pov', label: 'POV', hint: '"POV: akhirnya nemu…" — situasi relatable, terasa natural' },
+  { value: 'story', label: 'Storytelling', hint: 'Cerita singkat: masalah → nemu produk → hasil' },
+  { value: 'review', label: 'Review jujur', hint: '"Worth it nggak?" — kelebihan, kata pembeli, harga' },
+  { value: 'problem', label: 'Masalah → solusi', hint: '"Relate nggak?" lalu produk sebagai solusi' },
+  { value: 'tips', label: 'Tips / list', hint: '"3 alasan…" — poin bernomor' },
+  { value: 'promo', label: 'Promo', hint: 'Iklan klasik: kartu produk, harga besar, tombol' },
+];
+
 export interface Storyboard {
   title: string;
   theme: 'dark' | 'light';
+  style: StoryboardStyle;
   scenes: StoryboardScene[];
 }
 

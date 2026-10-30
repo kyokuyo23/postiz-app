@@ -16,8 +16,10 @@ import {
   AffiliateVideo,
   GalleryItem,
   SceneKind,
+  STORYBOARD_STYLES,
   Storyboard,
   StoryboardScene,
+  StoryboardStyle,
   useAffiliateVideos,
   useVideoRendererStatus,
 } from '@gitroom/frontend/components/affiliate/affiliate.hooks';
@@ -105,6 +107,7 @@ export const StoryboardEditor: FC<{
   const { data: renderer } = useVideoRendererStatus();
   const { mutate: reloadVideos } = useAffiliateVideos(product.id);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [style, setStyle] = useState<StoryboardStyle>('pov');
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [source, setSource] = useState<'ai' | 'template' | null>(null);
@@ -112,11 +115,11 @@ export const StoryboardEditor: FC<{
   const [rendering, setRendering] = useState(false);
 
   const generate = useCallback(
-    async (nextTheme: 'dark' | 'light') => {
+    async (nextTheme: 'dark' | 'light', nextStyle: StoryboardStyle) => {
       setLoading(true);
       const res = await fetch(`/affiliate/products/${product.id}/storyboard`, {
         method: 'POST',
-        body: JSON.stringify({ theme: nextTheme }),
+        body: JSON.stringify({ theme: nextTheme, style: nextStyle }),
       });
       setLoading(false);
       if (!res.ok) {
@@ -132,7 +135,7 @@ export const StoryboardEditor: FC<{
   );
 
   useEffect(() => {
-    generate('dark');
+    generate('dark', 'pov');
   }, []);
 
   const images = useMemo(
@@ -222,6 +225,7 @@ export const StoryboardEditor: FC<{
         storyboard: {
           ...storyboard,
           theme,
+          style,
           scenes: storyboard.scenes.map((s) => ({
             ...s,
             subtext: s.subtext?.trim() ? s.subtext.trim() : undefined,
@@ -239,7 +243,7 @@ export const StoryboardEditor: FC<{
       'success'
     );
     reloadVideos();
-  }, [storyboard, gallery, theme, fetch, product.id, toaster, t, reloadVideos]);
+  }, [storyboard, gallery, theme, style, fetch, product.id, toaster, t, reloadVideos]);
 
   return (
     <div className="flex flex-col gap-[16px] w-[min(860px,90vw)] max-h-[80vh] overflow-auto pe-[4px]">
@@ -251,6 +255,39 @@ export const StoryboardEditor: FC<{
           )}
         </div>
       )}
+      <div className="flex flex-col gap-[8px]">
+        <div className="text-[13px] font-[600]">{t('affiliate_style', 'Gaya video')}</div>
+        <div className="flex flex-wrap gap-[8px]">
+          {STORYBOARD_STYLES.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setStyle(s.value);
+                generate(theme, s.value);
+              }}
+              className={clsx(
+                'px-[12px] py-[8px] rounded-[8px] text-[13px] text-start border transition-colors max-w-[200px]',
+                style === s.value
+                  ? 'border-btnPrimary bg-btnPrimary/10'
+                  : 'border-newTableBorder hover:border-textItemBlur'
+              )}
+            >
+              <div className="font-[600]">{s.label}</div>
+              <div className="text-[11px] text-textItemBlur leading-[1.3]">{s.hint}</div>
+            </button>
+          ))}
+        </div>
+        {style === 'review' && (
+          <div className="text-[12px] text-amber-500">
+            {t(
+              'affiliate_review_style_note',
+              'Gaya review tidak mengaku sudah memakai produk. Kalau kamu memang sudah mencobanya, tambahkan pengalamanmu sendiri di teks adegan.'
+            )}
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-[10px]">
         <Segmented
           value={theme}
@@ -263,7 +300,7 @@ export const StoryboardEditor: FC<{
             setStoryboard((sb) => (sb ? { ...sb, theme: v } : sb));
           }}
         />
-        <SmallButton onClick={() => generate(theme)} disabled={loading}>
+        <SmallButton onClick={() => generate(theme, style)} disabled={loading}>
           {loading
             ? t('loading', 'Memuat…')
             : t('affiliate_regenerate', 'Buat ulang storyboard')}

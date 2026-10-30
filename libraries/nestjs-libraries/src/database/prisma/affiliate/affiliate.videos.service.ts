@@ -7,6 +7,7 @@ import {
   GalleryItem,
   Storyboard,
   StoryboardProduct,
+  StoryboardStyle,
   normalizeStoryboard,
   storyboardPrompt,
   storyboardSchema,
@@ -90,7 +91,12 @@ export class AffiliateVideosService {
   }
 
   /** Storyboard draft: AI when a key is configured, otherwise the template. */
-  async storyboard(orgId: string, productId: string, theme: 'dark' | 'light' = 'dark') {
+  async storyboard(
+    orgId: string,
+    productId: string,
+    theme: 'dark' | 'light' = 'dark',
+    style: StoryboardStyle = 'promo'
+  ) {
     const product = await this.product(orgId, productId);
     const input = toStoryboardProduct(product);
     let storyboard: Storyboard | null = null;
@@ -100,15 +106,21 @@ export class AffiliateVideosService {
         const model = langchainChatModel('gpt-4.1', { temperature: 0.8 });
         const draft = await model
           .withStructuredOutput(storyboardSchema, { name: 'storyboard' })
-          .invoke(storyboardPrompt(input));
-        storyboard = normalizeStoryboard({ ...draft, theme }, input.gallery.length);
+          .invoke(storyboardPrompt(input, style));
+        storyboard = normalizeStoryboard(
+          { ...draft, theme, style },
+          input.gallery.length
+        );
         source = 'ai';
       } catch (e) {
         Logger.warn(`AI storyboard failed, using template: ${(e as Error).message}`);
       }
     }
     if (!storyboard) {
-      storyboard = normalizeStoryboard(templateStoryboard(input, theme), input.gallery.length);
+      storyboard = normalizeStoryboard(
+        templateStoryboard(input, theme, style),
+        input.gallery.length
+      );
     }
     return { storyboard, gallery: input.gallery, source };
   }

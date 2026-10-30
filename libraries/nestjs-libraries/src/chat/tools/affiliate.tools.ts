@@ -5,7 +5,7 @@ import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { AffiliateProductsService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.service';
 import { AffiliateVideosService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.videos.service';
-import { storyboardSchema } from '@gitroom/nestjs-libraries/affiliate/storyboard';
+import { STORYBOARD_STYLES, storyboardSchema } from '@gitroom/nestjs-libraries/affiliate/storyboard';
 import { productGallery } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.videos.service';
 import { AFFILIATE_MARKETPLACES } from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
 
@@ -210,6 +210,12 @@ export class AffiliateStoryboardTool implements AgentToolInterface {
       inputSchema: z.object({
         productId: z.string().describe('Product id from affiliateProductsList'),
         theme: z.enum(['dark', 'light']).optional(),
+        style: z
+          .enum(STORYBOARD_STYLES)
+          .optional()
+          .describe(
+            'promo = classic ad; pov = "POV: ..." relatable situation; story = short story arc; review = honest pros/price ("worth it?"), never claim personal use; tips = numbered list; problem = problem -> solution. Non-promo styles render as natural full-screen creator videos with captions.'
+          ),
       }),
       mcp: {
         annotations: {
@@ -227,7 +233,8 @@ export class AffiliateStoryboardTool implements AgentToolInterface {
           output: await this._videos.storyboard(
             orgId,
             inputData.productId,
-            inputData.theme || 'dark'
+            inputData.theme || 'dark',
+            inputData.style || 'promo'
           ),
         };
       },

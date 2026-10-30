@@ -101,6 +101,48 @@ const sceneTweens = (scene: StoryboardScene, index: number, start: number) => {
   return lines.join('\n      ');
 };
 
+/**
+ * Natural creator look (POV, story, review, tips, problem): the photo fills
+ * the frame over a blurred copy of itself, captions sit in the lower third in
+ * TikTok-style outlined text, no ad card or button.
+ */
+const naturalSceneHtml = (
+  scene: StoryboardScene,
+  index: number,
+  start: number,
+  image?: string
+) => `
+      <div id="s${index}" class="clip nscene ${scene.kind}" data-start="${fmt(start)}" data-duration="${fmt(scene.duration)}" data-track-index="1">
+        ${
+          image
+            ? `<img class="nbg" src="${image}" alt="" /><img class="nfg" src="${image}" alt="" />`
+            : '<div class="nbg empty"></div>'
+        }
+        <div class="nshade"></div>
+        <div class="ncap">
+          <div class="nline">${escapeHtml(scene.headline)}</div>
+          ${scene.subtext ? `<div class="nsub">${escapeHtml(scene.subtext)}</div>` : ''}
+        </div>
+      </div>`;
+
+const naturalTweens = (scene: StoryboardScene, index: number, start: number) => {
+  const sel = `#s${index}`;
+  const t = (offset: number) => fmt(start + offset);
+  // alternate slow push-in / pull-out so consecutive photos feel filmed
+  const zoomIn = index % 2 === 0;
+  const lines = [
+    `tl.fromTo('${sel} .nfg', { scale: ${zoomIn ? 1 : 1.12} }, { scale: ${zoomIn ? 1.12 : 1}, duration: ${fmt(scene.duration)}, ease: 'none' }, ${t(0)});`,
+    `tl.fromTo('${sel}', { opacity: 0 }, { opacity: 1, duration: 0.18, ease: 'none' }, ${t(0)});`,
+    `tl.fromTo('${sel} .nline', { y: 24, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.3, ease: 'power3.out' }, ${t(0.1)});`,
+  ];
+  if (scene.subtext) {
+    lines.push(
+      `tl.fromTo('${sel} .nsub', { opacity: 0 }, { opacity: 1, duration: 0.3 }, ${t(0.5)});`
+    );
+  }
+  return lines.join('\n      ');
+};
+
 export const buildComposition = (
   storyboard: Storyboard,
   images: Record<number, string>,
@@ -111,13 +153,20 @@ export const buildComposition = (
   let cursor = 0;
   const scenes: string[] = [];
   const tweens: string[] = [];
+  const natural = (storyboard.style || 'promo') !== 'promo';
   storyboard.scenes.forEach((scene, i) => {
     const image =
       scene.imageIndex !== undefined && scene.imageIndex >= 0
         ? images[scene.imageIndex]
         : undefined;
-    scenes.push(sceneHtml(scene, i, cursor, image));
-    tweens.push(sceneTweens(scene, i, cursor));
+    scenes.push(
+      natural
+        ? naturalSceneHtml(scene, i, cursor, image)
+        : sceneHtml(scene, i, cursor, image)
+    );
+    tweens.push(
+      natural ? naturalTweens(scene, i, cursor) : sceneTweens(scene, i, cursor)
+    );
     cursor += scene.duration;
   });
   const brand = options.brand ? escapeHtml(options.brand) : '';
@@ -148,18 +197,31 @@ export const buildComposition = (
         padding: 24px 44px; border-radius: 24px; }
       #brand { top: 40px; height: 40px; display: flex; justify-content: center; font-size: 26px; font-weight: 700; color: ${theme.soft}; }
       #bar { top: 0; height: 8px; background: ${theme.accent}; transform-origin: 0 50%; }
+      .nscene { overflow: hidden; background: #000; }
+      .nbg { position: absolute; inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px);
+        object-fit: cover; filter: blur(28px) brightness(0.65); }
+      .nbg.empty { background: ${theme.bg}; filter: none; }
+      .nfg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; }
+      .nshade { position: absolute; left: 0; right: 0; bottom: 0; height: 52%;
+        background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%); }
+      .ncap { position: absolute; left: 48px; right: 48px; bottom: 170px; display: flex; flex-direction: column;
+        align-items: center; gap: 14px; text-align: center; }
+      .nline { font-size: 50px; line-height: 1.18; font-weight: 800; color: #fff;
+        -webkit-text-stroke: 7px #000; paint-order: stroke fill; text-shadow: 0 4px 14px rgba(0,0,0,0.45); }
+      .nsub { font-size: 32px; line-height: 1.25; font-weight: 700; color: #000; background: #fff;
+        padding: 8px 18px; border-radius: 12px; }
     </style>
   </head>
   <body>
     <div id="root" data-composition-id="main" data-start="0" data-duration="${fmt(total)}" data-width="${VIDEO_WIDTH}" data-height="${VIDEO_HEIGHT}">
-      <div id="bar" class="clip" data-start="0" data-duration="${fmt(total)}" data-track-index="0"></div>
-      ${brand ? `<div id="brand" class="clip" data-start="0" data-duration="${fmt(total)}" data-track-index="2">${brand}</div>` : ''}
+      ${natural ? '' : `<div id="bar" class="clip" data-start="0" data-duration="${fmt(total)}" data-track-index="0"></div>`}
+      ${brand && !natural ? `<div id="brand" class="clip" data-start="0" data-duration="${fmt(total)}" data-track-index="2">${brand}</div>` : ''}
       ${scenes.join('\n')}
     </div>
     <script>
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
-      tl.fromTo('#bar', { scaleX: 0 }, { scaleX: 1, duration: ${fmt(total)}, ease: 'none' }, 0);
+      ${natural ? '' : `tl.fromTo('#bar', { scaleX: 0 }, { scaleX: 1, duration: ${fmt(total)}, ease: 'none' }, 0);`}
       ${tweens.join('\n      ')}
       window.__timelines['main'] = tl;
       tl.seek(0);
