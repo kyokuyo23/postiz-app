@@ -10,6 +10,21 @@ const fields = (body: AffiliateProductDto) => ({
   imageId: body.imageId || null,
   imagePath: body.imagePath || null,
   notes: body.notes?.trim() || null,
+  ...(body.description !== undefined
+    ? { description: body.description.trim() || null }
+    : {}),
+  ...(body.gallery !== undefined
+    ? {
+        gallery: JSON.stringify(
+          body.gallery.map((g) => ({
+            id: g.id || null,
+            path: g.path,
+            type: g.type,
+            source: g.source,
+          }))
+        ),
+      }
+    : {}),
 });
 
 @Injectable()

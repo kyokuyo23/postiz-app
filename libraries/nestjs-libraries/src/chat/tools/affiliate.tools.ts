@@ -4,6 +4,9 @@ import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { AffiliateProductsService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.service';
+import { AffiliateVideosService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.videos.service';
+import { storyboardSchema } from '@gitroom/nestjs-libraries/affiliate/storyboard';
+import { productGallery } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.videos.service';
 import { AFFILIATE_MARKETPLACES } from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
 
 /**
@@ -28,6 +31,8 @@ const view = (p: {
   imagePath: string | null;
   notes: string | null;
   commission?: string | null;
+  description?: string | null;
+  gallery?: string;
 }) => ({
   id: p.id,
   name: p.name,
@@ -37,6 +42,9 @@ const view = (p: {
   image: p.imagePath ? { id: p.imageId, path: p.imagePath } : null,
   notes: p.notes,
   commission: p.commission || null,
+  description: p.description || null,
+  // index = imageIndex used by storyboards; source "review" = buyer photo
+  gallery: productGallery(p as any),
 });
 
 @Injectable()
@@ -190,9 +198,123 @@ export class ShopeeOfferImportTool implements AgentToolInterface {
   }
 }
 
+@Injectable()
+export class AffiliateStoryboardTool implements AgentToolInterface {
+  constructor(private _videos: AffiliateVideosService) {}
+  name = 'affiliateStoryboard';
+
+  run() {
+    return createTool({
+      id: 'affiliateStoryboard',
+      description: `Creates a storyboard draft for a short vertical promo video of an affiliate product: a 3-second hook first, then problem/product/benefits/proof/price/CTA scenes, each with on-screen headline, optional subtext, duration and a photo (imageIndex into the returned gallery). Review the draft, improve the hook and wording (Indonesian, short, no invented claims), then pass it to affiliateVideoRender. Gallery items with source "review" are buyer photos: only use them if the user explicitly asks.`,
+      inputSchema: z.object({
+        productId: z.string().describe('Product id from affiliateProductsList'),
+        theme: z.enum(['dark', 'light']).optional(),
+      }),
+      mcp: {
+        annotations: {
+          title: 'Affiliate Video Storyboard',
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false,
+        },
+      },
+      outputSchema: z.object({ output: z.any() }),
+      execute: async (inputData, context) => {
+        const orgId = orgIdFrom(inputData, context);
+        return {
+          output: await this._videos.storyboard(
+            orgId,
+            inputData.productId,
+            inputData.theme || 'dark'
+          ),
+        };
+      },
+    });
+  }
+}
+
+@Injectable()
+export class AffiliateVideoRenderTool implements AgentToolInterface {
+  constructor(private _videos: AffiliateVideosService) {}
+  name = 'affiliateVideoRender';
+
+  run() {
+    return createTool({
+      id: 'affiliateVideoRender',
+      description: `Renders a storyboard into a 9:16 MP4 video (free, on the user's server) and saves it to the media library. Rendering takes about 1-3 minutes; check progress with affiliateVideoStatus. The first scene must be the hook (max 3 seconds); total max 40 seconds.`,
+      inputSchema: z.object({
+        productId: z.string(),
+        storyboard: storyboardSchema,
+      }),
+      mcp: {
+        annotations: {
+          title: 'Render Affiliate Video',
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false,
+        },
+      },
+      outputSchema: z.object({ output: z.any() }),
+      execute: async (inputData, context) => {
+        const orgId = orgIdFrom(inputData, context);
+        const job = await this._videos.render(
+          orgId,
+          inputData.productId,
+          inputData.storyboard
+        );
+        return { output: { videoId: job.id, status: job.status } };
+      },
+    });
+  }
+}
+
+@Injectable()
+export class AffiliateVideoStatusTool implements AgentToolInterface {
+  constructor(private _videos: AffiliateVideosService) {}
+  name = 'affiliateVideoStatus';
+
+  run() {
+    return createTool({
+      id: 'affiliateVideoStatus',
+      description: `Lists the rendered videos of an affiliate product with status QUEUED, RENDERING, DONE or ERROR. A DONE video has mediaId and mediaPath: attach it to a post as {id: mediaId, path: mediaPath} when scheduling.`,
+      inputSchema: z.object({ productId: z.string() }),
+      mcp: {
+        annotations: {
+          title: 'Affiliate Video Status',
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      outputSchema: z.object({ output: z.any() }),
+      execute: async (inputData, context) => {
+        const orgId = orgIdFrom(inputData, context);
+        const videos = await this._videos.list(orgId, inputData.productId);
+        return {
+          output: videos.map((v) => ({
+            videoId: v.id,
+            status: v.status,
+            mediaId: v.mediaId,
+            mediaPath: v.mediaPath,
+            error: v.error,
+            createdAt: v.createdAt,
+          })),
+        };
+      },
+    });
+  }
+}
+
 export const affiliateTools = [
   AffiliateProductsListTool,
   AffiliateProductCreateTool,
   ShopeeOffersSearchTool,
   ShopeeOfferImportTool,
+  AffiliateStoryboardTool,
+  AffiliateVideoRenderTool,
+  AffiliateVideoStatusTool,
 ];

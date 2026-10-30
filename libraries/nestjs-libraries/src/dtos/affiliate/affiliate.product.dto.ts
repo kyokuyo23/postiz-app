@@ -11,6 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ArrayMaxSize, IsArray, IsObject, ValidateNested } from 'class-validator';
 
 export const AFFILIATE_MARKETPLACES = [
   'shopee',
@@ -22,6 +23,23 @@ export const AFFILIATE_MARKETPLACES = [
   'other',
 ] as const;
 export type AffiliateMarketplace = (typeof AFFILIATE_MARKETPLACES)[number];
+
+export class AffiliateGalleryItemDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  id?: string;
+
+  @IsString()
+  @MaxLength(2000)
+  path: string;
+
+  @IsIn(['image', 'video'])
+  type: 'image' | 'video';
+
+  @IsIn(['product', 'review'])
+  source: 'product' | 'review';
+}
 
 export class AffiliateProductDto {
   @IsString()
@@ -55,6 +73,31 @@ export class AffiliateProductDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  description?: string;
+
+  /** Omit to keep the current gallery. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => AffiliateGalleryItemDto)
+  gallery?: AffiliateGalleryItemDto[];
+}
+
+export class StoryboardRequestDto {
+  @IsOptional()
+  @IsIn(['dark', 'light'])
+  theme?: 'dark' | 'light';
+}
+
+export class RenderVideoDto {
+  /** Validated with the zod storyboard schema in the service. */
+  @IsObject()
+  storyboard: Record<string, unknown>;
 }
 
 export const SHOPEE_SORTS = [

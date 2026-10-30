@@ -14,6 +14,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN npm --no-update-notifier --no-fund --global install pnpm@10.6.1
 
+# Affiliate promo videos: HyperFrames renders HTML to MP4 with Chromium + FFmpeg.
+# One render at a time (~400 MB RAM while it runs).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    ffmpeg \
+    fonts-dejavu-core \
+    fonts-noto-color-emoji \
+&& rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /opt/hyperframes && cd /opt/hyperframes \
+ && npm init -y >/dev/null \
+ && npm --no-update-notifier --no-fund install --omit=dev hyperframes@0.8.216
+ENV HYPERFRAMES_HOME=/opt/hyperframes \
+    HYPERFRAMES_BROWSER_PATH=/usr/bin/chromium \
+    HYPERFRAMES_SKIP_SKILLS=1 \
+    HYPERFRAMES_NO_TELEMETRY=1 \
+    HYPERFRAMES_NO_UPDATE_CHECK=1 \
+    PUPPETEER_SKIP_DOWNLOAD=1
+
 WORKDIR /app
 COPY . /app
 

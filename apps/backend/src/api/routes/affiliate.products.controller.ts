@@ -12,16 +12,50 @@ import { ApiTags } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { AffiliateProductsService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.service';
+import { AffiliateVideosService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.videos.service';
 import {
   AffiliateProductDto,
   ShopeeImportDto,
   ShopeeOffersQueryDto,
+  StoryboardRequestDto,
+  RenderVideoDto,
 } from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
 
 @ApiTags('Affiliate')
 @Controller('/affiliate/products')
 export class AffiliateProductsController {
-  constructor(private _productsService: AffiliateProductsService) {}
+  constructor(
+    private _productsService: AffiliateProductsService,
+    private _videosService: AffiliateVideosService
+  ) {}
+
+  @Get('/video/status')
+  videoStatus() {
+    return this._videosService.status();
+  }
+
+  @Post('/:id/storyboard')
+  storyboard(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: StoryboardRequestDto
+  ) {
+    return this._videosService.storyboard(org.id, id, body.theme || 'dark');
+  }
+
+  @Post('/:id/videos')
+  renderVideo(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: RenderVideoDto
+  ) {
+    return this._videosService.render(org.id, id, body.storyboard);
+  }
+
+  @Get('/:id/videos')
+  videos(@GetOrgFromRequest() org: Organization, @Param('id') id: string) {
+    return this._videosService.list(org.id, id);
+  }
 
   @Get('/')
   list(

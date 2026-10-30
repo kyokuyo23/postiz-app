@@ -58,6 +58,16 @@ export class MediaService {
     return this.saveFile(org, file.split('/').pop()!, file, originalName);
   }
 
+  /** Stores a generated file (e.g. a rendered video) in the media library. */
+  async saveBuffer(org: string, buffer: Buffer, originalName: string) {
+    const file = await this.storage.uploadFile({
+      buffer,
+      originalname: originalName,
+      size: buffer.length,
+    } as Express.Multer.File);
+    return this.saveFile(org, file.path.split('/').pop()!, file.path, originalName);
+  }
+
   saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
     return this._mediaRepository.saveFile(org, fileName, filePath, originalName);
   }
