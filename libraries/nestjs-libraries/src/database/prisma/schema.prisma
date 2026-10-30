@@ -49,6 +49,7 @@ model Organization {
   commentTemplates    CommentAutomationTemplate[]
   commentLogs         CommentAutomationLog[]
   affiliateProducts   AffiliateProduct[]
+  affiliateVideos     AffiliateVideo[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1104,11 +1105,33 @@ model AffiliateProduct {
   commission     String?
   source         String?
   externalId     String?
+  description    String?
+  gallery        String       @default("[]")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id])
+  videos         AffiliateVideo[]
 
   @@index([organizationId])
   @@index([deletedAt])
+}
+
+model AffiliateVideo {
+  id             String           @id @default(uuid())
+  organizationId String
+  productId      String
+  storyboard     String
+  status         String           @default("QUEUED")
+  mediaId        String?
+  mediaPath      String?
+  error          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  product        AffiliateProduct @relation(fields: [productId], references: [id])
+
+  @@index([organizationId])
+  @@index([productId])
+  @@index([status])
 }

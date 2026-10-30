@@ -27,8 +27,84 @@ export interface AffiliateProduct {
   notes: string | null;
   commission: string | null;
   source: string | null;
+  description: string | null;
+  gallery: string;
   createdAt: string;
 }
+
+export interface GalleryItem {
+  id?: string | null;
+  path: string;
+  type: 'image' | 'video';
+  source: 'product' | 'review';
+}
+
+export const parseGallery = (raw?: string | null): GalleryItem[] => {
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+export type SceneKind =
+  | 'hook'
+  | 'problem'
+  | 'reveal'
+  | 'benefit'
+  | 'proof'
+  | 'price'
+  | 'cta';
+
+export interface StoryboardScene {
+  kind: SceneKind;
+  duration: number;
+  headline: string;
+  subtext?: string;
+  imageIndex?: number;
+  voiceover?: string;
+}
+
+export interface Storyboard {
+  title: string;
+  theme: 'dark' | 'light';
+  scenes: StoryboardScene[];
+}
+
+export interface AffiliateVideo {
+  id: string;
+  status: 'QUEUED' | 'RENDERING' | 'DONE' | 'ERROR';
+  mediaId: string | null;
+  mediaPath: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export const useVideoRendererStatus = () => {
+  const fetch = useFetch();
+  const load = useCallback(async () => {
+    return (await (
+      await fetch('/affiliate/products/video/status')
+    ).json()) as { available: boolean; ai: string | null };
+  }, [fetch]);
+  return useSWR('affiliate-video-status', load, { revalidateOnFocus: false });
+};
+
+export const useAffiliateVideos = (productId: string) => {
+  const fetch = useFetch();
+  const load = useCallback(async () => {
+    return (await (
+      await fetch(`/affiliate/products/${productId}/videos`)
+    ).json()) as AffiliateVideo[];
+  }, [fetch, productId]);
+  return useSWR(`affiliate-videos-${productId}`, load, {
+    refreshInterval: (data) =>
+      data?.some((v) => v.status === 'QUEUED' || v.status === 'RENDERING')
+        ? 5000
+        : 0,
+  });
+};
 
 export interface ShopeeOffer {
   itemId: string;

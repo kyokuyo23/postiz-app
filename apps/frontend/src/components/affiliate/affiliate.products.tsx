@@ -27,7 +27,10 @@ import {
   marketplaceLabel,
   useAffiliateProducts,
   useIntegrationsForEditor,
+  GalleryItem,
+  parseGallery,
 } from '@gitroom/frontend/components/affiliate/affiliate.hooks';
+import { StoryboardEditor } from '@gitroom/frontend/components/affiliate/storyboard.editor';
 
 type FormValues = {
   name: string;
@@ -35,7 +38,9 @@ type FormValues = {
   marketplace: Marketplace;
   link: string;
   notes: string;
+  description: string;
   image: { id: string; path: string } | null;
+  gallery: GalleryItem[];
 };
 
 const emptyForm: FormValues = {
@@ -44,7 +49,9 @@ const emptyForm: FormValues = {
   marketplace: 'shopee',
   link: '',
   notes: '',
+  description: '',
   image: null,
+  gallery: [],
 };
 
 const ProductForm: FC<{
@@ -64,6 +71,8 @@ const ProductForm: FC<{
           marketplace: product.marketplace,
           link: product.link,
           notes: product.notes || '',
+          description: product.description || '',
+          gallery: parseGallery(product.gallery),
           image: product.imagePath
             ? { id: product.imageId || '', path: product.imagePath }
             : null,
@@ -85,6 +94,39 @@ const ProductForm: FC<{
       }
     });
   }, [set]);
+
+  const addToGallery = useCallback(
+    (source: GalleryItem['source']) => () => {
+      showMediaBox((media: any) => {
+        const picked = (Array.isArray(media) ? media : [media]).filter(
+          (m: any) => m?.path
+        );
+        setValues((v) => ({
+          ...v,
+          gallery: [
+            ...v.gallery,
+            ...picked
+              .filter((m: any) => !v.gallery.some((g) => g.path === m.path))
+              .map(
+                (m: any): GalleryItem => ({
+                  id: m.id,
+                  path: m.path,
+                  type: /\.(mp4|mov|webm)(\?|$)/i.test(m.path) ? 'video' : 'image',
+                  source,
+                })
+              ),
+          ].slice(0, 30),
+        }));
+      });
+    },
+    []
+  );
+
+  const removeFromGallery = useCallback(
+    (path: string) => () =>
+      setValues((v) => ({ ...v, gallery: v.gallery.filter((g) => g.path !== path) })),
+    []
+  );
 
   const save = useCallback(async () => {
     if (!values.name.trim() || !/^https?:\/\//i.test(values.link.trim())) {
@@ -108,6 +150,8 @@ const ProductForm: FC<{
           marketplace: values.marketplace,
           link: values.link.trim(),
           notes: values.notes || undefined,
+          description: values.description,
+          gallery: values.gallery,
           imageId: values.image?.id || undefined,
           imagePath: values.image?.path || undefined,
         }),
@@ -205,6 +249,61 @@ const ProductForm: FC<{
           )}
         </div>
       </div>
+      <label className="flex flex-col gap-[6px] text-[14px]">
+        {t('affiliate_description', 'Deskripsi produk (opsional)')}
+        <textarea
+          className={`${inputClass} h-[110px] py-[10px] resize-y`}
+          value={values.description}
+          maxLength={10000}
+          onChange={(e) => set('description', e.target.value)}
+          placeholder={t(
+            'affiliate_description_hint',
+            'Tempel deskripsi dari halaman produk. Dipakai untuk storyboard video dan caption.'
+          )}
+        />
+      </label>
+      <div className="flex flex-col gap-[8px] text-[14px]">
+        {t('affiliate_gallery', 'Galeri foto & video')}
+        {!!values.gallery.length && (
+          <div className="flex flex-wrap gap-[8px]">
+            {values.gallery.map((g) => (
+              <div key={g.path} className="relative w-[72px] h-[72px]">
+                {g.type === 'video' ? (
+                  <video src={g.path} muted className="w-full h-full rounded-[8px] object-cover border border-newTableBorder" />
+                ) : (
+                  <img src={g.path} alt="" className="w-full h-full rounded-[8px] object-cover border border-newTableBorder" />
+                )}
+                {g.source === 'review' && (
+                  <span className="absolute bottom-[2px] start-[2px] text-[10px] px-[4px] rounded bg-amber-500 text-black">
+                    review
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={removeFromGallery(g.path)}
+                  className="absolute -top-[6px] -end-[6px] w-[20px] h-[20px] rounded-full bg-red-600 text-white text-[12px] leading-[20px]"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-[8px]">
+          <SmallButton onClick={addToGallery('product')}>
+            {t('affiliate_add_product_media', '+ Foto/video produk')}
+          </SmallButton>
+          <SmallButton onClick={addToGallery('review')}>
+            {t('affiliate_add_review_media', '+ Foto review pembeli')}
+          </SmallButton>
+        </div>
+        <div className="text-[12px] text-textItemBlur">
+          {t(
+            'affiliate_review_warning',
+            'Foto review adalah milik pembeli: dipakai sebagai referensi dan tidak masuk video otomatis. Pakai di postingan hanya jika sudah ada izin.'
+          )}
+        </div>
+      </div>
       <div className="flex justify-end gap-[8px] pt-[6px]">
         <SmallButton onClick={() => modals.closeCurrent()}>
           {t('cancel', 'Batal')}
@@ -249,7 +348,7 @@ export const AffiliateProducts: FC = () => {
   );
 
   const createPost = useCallback(
-    (product: AffiliateProduct) => async () => {
+    (product: AffiliateProduct, media?: { id: string; path: string }[]) => async () => {
       if (!integrations?.length) {
         toaster.show(
           t('affiliate_no_channels', 'Sambungkan channel dulu di menu Launches'),
@@ -258,7 +357,7 @@ export const AffiliateProducts: FC = () => {
         return;
       }
       const date = (await (await fetch('/posts/find-slot')).json()).date;
-      const reopen = () => createPost(product)();
+      const reopen = () => createPost(product, media)();
       modals.openModal({
         id: 'add-edit-modal',
         closeOnClickOutside: false,
@@ -280,7 +379,9 @@ export const AffiliateProducts: FC = () => {
             onlyValues={[
               {
                 content: affiliateCaption(product),
-                image: product.imagePath
+                image: media
+                  ? media
+                  : product.imagePath
                   ? [{ id: product.imageId || '', path: product.imagePath }]
                   : [],
               },
@@ -290,6 +391,26 @@ export const AffiliateProducts: FC = () => {
       });
     },
     [integrations, fetch, modals, toaster, t]
+  );
+
+  const openStoryboard = useCallback(
+    (product: AffiliateProduct) => () => {
+      modals.openModal({
+        title: t('affiliate_video_title', 'Video promo: storyboard'),
+        withCloseButton: true,
+        size: '900px',
+        children: (
+          <StoryboardEditor
+            product={product}
+            onUseVideo={(video) => {
+              modals.closeAll();
+              createPost(product, [video])();
+            }}
+          />
+        ),
+      });
+    },
+    [modals, t, createPost]
   );
 
   const copyVideoPrompt = useCallback(
@@ -394,6 +515,9 @@ export const AffiliateProducts: FC = () => {
               <div className="flex flex-wrap gap-[6px] mt-auto">
                 <SmallButton variant="primary" onClick={createPost(product)}>
                   {t('affiliate_create_post', 'Buat postingan')}
+                </SmallButton>
+                <SmallButton onClick={openStoryboard(product)}>
+                  {t('affiliate_make_video', 'Buat video')}
                 </SmallButton>
                 <SmallButton onClick={copyVideoPrompt(product)}>
                   {t('affiliate_video_prompt', 'Prompt video')}
