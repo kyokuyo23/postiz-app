@@ -19,6 +19,7 @@ import {
   ShopeeOffersQueryDto,
   StoryboardRequestDto,
   RenderVideoDto,
+  PageImportDto,
 } from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
 
 @ApiTags('Affiliate')
@@ -28,6 +29,14 @@ export class AffiliateProductsController {
     private _productsService: AffiliateProductsService,
     private _videosService: AffiliateVideosService
   ) {}
+
+  @Post('/import-page')
+  importPage(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: PageImportDto
+  ) {
+    return this._productsService.importPage(org.id, body);
+  }
 
   @Get('/video/status')
   videoStatus() {
