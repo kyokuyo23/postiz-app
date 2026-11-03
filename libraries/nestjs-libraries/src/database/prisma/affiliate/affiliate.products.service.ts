@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AffiliateProductsRepository } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.repository';
-import { AffiliateProductDto } from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
+import {
+  AffiliateProductDto,
+  PageImportDto,
+} from '@gitroom/nestjs-libraries/dtos/affiliate/affiliate.product.dto';
+import {
+  cleanProductUrl,
+  marketplaceFromUrl,
+  uniqueUrls,
+} from '@gitroom/nestjs-libraries/affiliate/page.import';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import {
   ShopeeAffiliateError,
@@ -45,6 +53,66 @@ export class AffiliateProductsService {
   async remove(orgId: string, id: string) {
     await this.get(orgId, id);
     return this._repository.remove(orgId, id);
+  }
+
+  // ------------------------------------------------- page import (bookmarklet)
+
+  /**
+   * Creates a catalog product from data captured on a marketplace page. Photos
+   * and videos are copied into the media library (SSRF-safe downloader) so
+   * they can be used in posts and storyboard videos.
+   */
+  async importPage(orgId: string, body: PageImportDto) {
+    const images = uniqueUrls(body.images, 12);
+    const videos = uniqueUrls(body.videos, 1);
+    const gallery: { id: string; path: string; type: 'image' | 'video'; source: 'product' }[] = [];
+
+    const copy = async (url: string, type: 'image' | 'video', i: number) => {
+      try {
+        const media = await this._mediaService.importFromUrl(
+          orgId,
+          url,
+          `${body.name.slice(0, 60)} ${type === 'video' ? 'video' : i + 1}${type === 'video' ? '.mp4' : '.jpg'}`
+        );
+        return { id: media.id, path: media.path, type, source: 'product' as const };
+      } catch (e) {
+        Logger.warn(`Page import: could not copy ${type}: ${(e as Error).message}`);
+        return null;
+      }
+    };
+
+    // a few at a time: small VPS, and marketplace CDNs dislike bursts
+    for (let i = 0; i < images.length; i += 3) {
+      const batch = await Promise.all(
+        images.slice(i, i + 3).map((url, j) => copy(url, 'image', i + j))
+      );
+      batch.forEach((g) => g && gallery.push(g));
+    }
+    for (const url of videos) {
+      const g = await copy(url, 'video', 0);
+      if (g) gallery.push(g);
+    }
+
+    const main = gallery.find((g) => g.type === 'image');
+    const notes = [
+      body.sold ? `Sudah ${body.sold.replace(/terjual/i, '').trim()} terjual` : '',
+      body.rating ? `Rating ${body.rating}/5` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const pageUrl = cleanProductUrl(body.url);
+
+    return this._repository.create(orgId, {
+      name: body.name.trim().slice(0, 200),
+      price: body.price?.trim() || undefined,
+      marketplace: marketplaceFromUrl(pageUrl) as AffiliateProductDto['marketplace'],
+      link: body.link?.trim() || pageUrl,
+      imageId: main?.id,
+      imagePath: main?.path,
+      notes: notes || undefined,
+      description: body.description?.trim() || undefined,
+      gallery,
+    });
   }
 
   // ------------------------------------------------------------ Shopee

@@ -321,6 +321,7 @@ export const useAffiliateTabs = () => {
   return [
     { label: t('affiliate_catalog', 'Katalog'), href: '/affiliate' },
     { label: t('affiliate_shopee_research', 'Riset Shopee'), href: '/affiliate/shopee' },
+    { label: t('affiliate_import_tab', 'Impor dari halaman'), href: '/affiliate/import' },
   ];
 };
 

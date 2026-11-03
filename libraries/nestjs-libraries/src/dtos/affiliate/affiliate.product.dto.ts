@@ -143,3 +143,53 @@ export class ShopeeImportDto {
   @Matches(/^\d{1,19}$/)
   itemId: string;
 }
+
+/** Product data captured from a marketplace page (bookmarklet or pasted text). */
+export class PageImportDto {
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @MaxLength(2000)
+  url: string;
+
+  /** Affiliate link to use instead of the page URL (optional). */
+  @IsOptional()
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @MaxLength(2000)
+  link?: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  price?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(15)
+  @IsUrl({ protocols: ['https'], require_protocol: true }, { each: true })
+  images?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(2)
+  @IsUrl({ protocols: ['https'], require_protocol: true }, { each: true })
+  videos?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  rating?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  sold?: string;
+}
