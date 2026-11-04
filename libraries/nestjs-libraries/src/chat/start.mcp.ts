@@ -45,6 +45,25 @@ export const startMcp = async (app: INestApplication) => {
 
   const server = new MCPServer(serverConfig);
 
+  // Sessions live in memory, so they are gone after a backend restart. The
+  // MCP spec says an unknown session must get HTTP 404 so the client starts a
+  // new one; Mastra answers 400, which leaves connectors (Claude, Hermes)
+  // stuck until they are reconnected by hand.
+  const rejectUnknownSession = (req: Request, res: Response) => {
+    const id = req.headers['mcp-session-id'];
+    // @ts-ignore private map of active streamable HTTP sessions
+    const sessions = server.streamableHTTPTransports as Map<string, unknown> | undefined;
+    if (typeof id === 'string' && id && sessions && !sessions.has(id)) {
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: { code: -32001, message: 'Session not found, please re-initialize' },
+        id: null,
+      });
+      return true;
+    }
+    return false;
+  };
+
   const oauthMiddleware = createOAuthMiddleware({
     oauth: {
       resource: new URL('/mcp-oauth', process.env.NEXT_PUBLIC_BACKEND_URL!).toString(),
@@ -113,6 +132,7 @@ export const startMcp = async (app: INestApplication) => {
       return;
     }
 
+    if (rejectUnknownSession(req, res)) return;
     fixAcceptHeader(req);
     await runWithContext({ requestId: token!, auth }, async () => {
       await server.startHTTP({
@@ -164,6 +184,7 @@ export const startMcp = async (app: INestApplication) => {
 
     const url = new URL('/mcp', process.env.NEXT_PUBLIC_BACKEND_URL);
 
+    if (rejectUnknownSession(req, res)) return;
     fixAcceptHeader(req);
     // @ts-ignore
     await runWithContext({ requestId: token, auth: req.auth }, async () => {
@@ -207,6 +228,7 @@ export const startMcp = async (app: INestApplication) => {
       process.env.NEXT_PUBLIC_BACKEND_URL
     );
 
+    if (rejectUnknownSession(req, res)) return;
     fixAcceptHeader(req);
     await runWithContext(
       // @ts-ignore
