@@ -27,6 +27,16 @@ import {
   endYoutubeLive,
   LiveApiError,
 } from '@gitroom/nestjs-libraries/live/live.platforms';
+import {
+  ChatGuard,
+  facebookLiveComments,
+  facebookReply,
+  youtubeChatId,
+  youtubeChatMessages,
+  youtubeChatSend,
+} from '@gitroom/nestjs-libraries/live/live.chat';
+import { CommentAutomationsService } from '@gitroom/nestjs-libraries/database/prisma/comments/comment.automations.service';
+import { CommentRule, decide } from '@gitroom/nestjs-libraries/comments/comment.rules';
 
 type Session = LiveSession & { destinations: LiveDestination[] };
 
@@ -69,6 +79,15 @@ export const joinRtmp = (server: string, key: string) =>
 
 const errorText = (e: unknown) => (e as Error)?.message || String(e);
 
+interface ChatState {
+  chatId?: string | null;
+  pageToken?: string;
+  seen: Set<string>;
+  initialized: boolean;
+  nextPollAt: number;
+  guard: ChatGuard;
+}
+
 @Injectable()
 export class LiveService {
   private processes = new Map<string, ChildProcess>();
@@ -76,11 +95,14 @@ export class LiveService {
   private restarts = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
+  private chats = new Map<string, ChatState>();
+  private rulesCache = new Map<string, { at: number; rules: CommentRule[] }>();
 
   constructor(
     private _repository: LiveRepository,
     private _integrations: IntegrationService,
-    private _refresh: RefreshIntegrationService
+    private _refresh: RefreshIntegrationService,
+    private _automations: CommentAutomationsService
   ) {}
 
   status() {
@@ -178,6 +200,7 @@ export class LiveService {
         loop: body.source === 'VIDEO' && !!body.loop,
         durationMinutes: body.source === 'VIDEO' ? body.durationMinutes || null : null,
         privacy: body.privacy || 'public',
+        autoReply: !!body.autoReply,
         scheduledAt,
       },
       destinations
@@ -278,6 +301,7 @@ export class LiveService {
         try {
           if (s.source === 'RTMP') await this.tickRtmp(s, ready.has(`live/${s.streamKey}`));
           else await this.tickVideo(s);
+          if (s.status === 'LIVE' && s.autoReply && this.findProcess(s.id)) await this.pollChats(s);
         } catch (e) {
           Logger.error(`Live ${s.id}: ${errorText(e)}`);
           await this.finalize(s, 'ERROR', errorText(e));
@@ -501,6 +525,7 @@ export class LiveService {
     if (proc) proc.kill('SIGTERM');
     this.restarts.delete(s.id);
     this.exitLogs.delete(s.id);
+    for (const d of s.destinations) this.chats.delete(d.id);
 
     for (const d of s.destinations) {
       if (d.status === 'ENDED') continue;
@@ -525,5 +550,89 @@ export class LiveService {
       error: error ? error.slice(0, 1000) : null,
       endedAt: new Date(),
     });
+  }
+
+  // ------------------------------------------------------- live chat replies
+
+  /** Active comment rules, without "every comment" rules (too spammy in a live chat). */
+  private async liveRules(orgId: string) {
+    const cached = this.rulesCache.get(orgId);
+    if (cached && Date.now() - cached.at < 60_000) return cached.rules;
+    const rules = (await this._automations.activeRules(orgId)).filter(
+      (r) => r.matchType !== 'every' && r.replies.some((x) => x.trim())
+    );
+    this.rulesCache.set(orgId, { at: Date.now(), rules });
+    return rules;
+  }
+
+  async pollChats(s: Session) {
+    const rules = await this.liveRules(s.organizationId);
+    if (!rules.length) return;
+    for (const d of s.destinations) {
+      if (d.status !== 'LIVE' || !d.externalId || !d.integrationId) continue;
+      if (d.kind !== 'youtube' && d.kind !== 'facebook') continue;
+      let state = this.chats.get(d.id);
+      if (!state) {
+        state = { seen: new Set(), initialized: false, nextPollAt: 0, guard: new ChatGuard() };
+        this.chats.set(d.id, state);
+      }
+      if (Date.now() < state.nextPollAt) continue;
+      try {
+        await this.pollChat(s, d, state, rules);
+      } catch (e) {
+        state.nextPollAt = Date.now() + 60_000;
+        Logger.warn(`Live ${s.id}: chat ${d.kind}: ${errorText(e)}`);
+      }
+    }
+  }
+
+  private async pollChat(s: Session, d: LiveDestination, state: ChatState, rules: CommentRule[]) {
+    const integration = await this.freshIntegration(s.organizationId, d.integrationId!);
+    let messages;
+    if (d.kind === 'youtube') {
+      if (!state.chatId) {
+        state.chatId = await youtubeChatId(integration.token, d.externalId!);
+        if (!state.chatId) {
+          state.nextPollAt = Date.now() + 30_000;
+          return;
+        }
+      }
+      const page = await youtubeChatMessages(integration.token, state.chatId, state.pageToken);
+      state.pageToken = page.nextPageToken;
+      // YouTube Data API quota: never poll faster than every 15 s
+      state.nextPollAt = Date.now() + Math.max(page.pollMs, 15_000);
+      messages = page.messages;
+    } else {
+      messages = (
+        await facebookLiveComments(integration.internalId, integration.token, d.externalId!)
+      ).reverse();
+      state.nextPollAt = Date.now() + 10_000;
+    }
+
+    const fresh = messages.filter((m) => !state.seen.has(m.id));
+    fresh.forEach((m) => state.seen.add(m.id));
+    if (!state.initialized) {
+      // messages from before auto-reply started are never answered
+      state.initialized = true;
+      return;
+    }
+
+    for (const m of fresh) {
+      if (m.own || !m.text.trim()) continue;
+      const decision = decide(rules, {
+        id: m.id,
+        integrationId: d.integrationId!,
+        authorName: m.authorName,
+        text: m.text,
+      });
+      if (!decision?.reply || !state.guard.allow(m.authorId || m.authorName)) continue;
+      if (d.kind === 'youtube') {
+        await youtubeChatSend(integration.token, state.chatId!, decision.reply);
+      } else {
+        await facebookReply(integration.token, m.id, decision.reply);
+      }
+      state.guard.record(m.authorId || m.authorName);
+      Logger.log(`Live ${s.id}: auto-replied on ${d.kind}`);
+    }
   }
 }

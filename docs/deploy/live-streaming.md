@@ -42,3 +42,13 @@ Upload VPS perlu ± bitrate × jumlah tujuan (mis. 3 tujuan × 3 Mbps ≈ 9 Mbps
 - Mode video di-encode ulang (≈1 core di VPS 2 vCPU), jadi hanya 1 live video berjalan bersamaan (`LIVE_MAX_VIDEO`).
 - Stream putus > 3 menit → live diakhiri di semua platform. Tidak ada stream masuk 3 jam setelah jadwal → dibatalkan.
 - Loop video panjang yang berulang bisa dianggap konten repetitif oleh YouTube/Facebook; gunakan seperlunya.
+
+## Auto-reply komentar live
+
+Centang **Auto-reply komentar live** saat menjadwalkan. Postiz membaca chat YouTube Live dan komentar Facebook Live, lalu membalas dengan aturan dari menu **Automation** (kata kunci → balasan, `{name}` diganti nama penonton). Aturan juga bisa dibatasi per channel.
+
+- Komentar yang sudah ada sebelum auto-reply mulai tidak dibalas.
+- Aturan "semua komentar" (every) tidak dipakai di live, supaya chat tidak kebanjiran.
+- Maks. 1 balasan per penonton per 5 menit, jeda minimal 20 detik, 60 balasan per live.
+- YouTube dicek tiap ≥15 detik (kuota YouTube Data API ±1.200 unit/jam live), Facebook tiap 10 detik.
+- TikTok tidak punya API komentar LIVE.

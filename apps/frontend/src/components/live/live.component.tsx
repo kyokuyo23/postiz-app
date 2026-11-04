@@ -96,6 +96,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
   const [duration, setDuration] = useState(60);
   const [selected, setSelected] = useState<string[]>([]);
   const [custom, setCustom] = useState<CustomTarget[]>([]);
+  const [autoReply, setAutoReply] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const tiktokInVideo =
@@ -120,6 +121,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
         source,
         scheduledAt: new Date(when).toISOString(),
         privacy,
+        autoReply,
         ...(source === 'VIDEO'
           ? { mediaPath, loop, durationMinutes: Number(duration) || undefined }
           : {}),
@@ -362,6 +364,18 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
           </div>
         )}
 
+        <div className="flex flex-col gap-[4px]">
+          <label className="flex items-center gap-[8px] text-[14px]">
+            <input type="checkbox" checked={autoReply} onChange={(e) => setAutoReply(e.target.checked)} />
+            Auto-reply komentar live (YouTube & Facebook)
+          </label>
+          <div className="text-[12px] text-textItemBlur ps-[22px]">
+            Memakai aturan di menu Automation (kata kunci → balasan, mis. “harga” → “cek link di deskripsi ya
+            {' {name}'}”). Aturan “semua komentar” tidak dipakai di live. Maks. 1 balasan per penonton tiap 5
+            menit, jeda 20 detik, 60 balasan per live. TikTok tidak punya API komentar live.
+          </div>
+        </div>
+
         <div>
           <SmallButton
             type="submit"
@@ -399,6 +413,7 @@ const SessionCard: FC<{ session: LiveSession; onChange: () => void }> = ({ sessi
           <div className="text-[15px] font-[600]">{session.title}</div>
           <div className="text-[12px] text-textItemBlur">
             {session.source === 'RTMP' ? 'Live dari OBS / HP' : `Video${session.loop ? ' · loop' : ''}`}
+            {session.autoReply && ' · auto-reply'}
             {' · '}
             {dayjs(session.scheduledAt).format('DD MMM YYYY HH:mm')}
             {session.endsAt && ` → ${dayjs(session.endsAt).format('HH:mm')}`}
