@@ -30,6 +30,8 @@ import { SignatureService } from '@gitroom/nestjs-libraries/database/prisma/sign
 import { AutopostRepository } from '@gitroom/nestjs-libraries/database/prisma/autopost/autopost.repository';
 import { AutopostService } from '@gitroom/nestjs-libraries/database/prisma/autopost/autopost.service';
 import { CommentsRepository } from '@gitroom/nestjs-libraries/database/prisma/comments/comments.repository';
+import { LiveRepository } from '@gitroom/nestjs-libraries/database/prisma/live/live.repository';
+import { LiveService } from '@gitroom/nestjs-libraries/database/prisma/live/live.service';
 import { CommentsService } from '@gitroom/nestjs-libraries/database/prisma/comments/comments.service';
 import { AffiliateProductsRepository } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.repository';
 import { AffiliateProductsService } from '@gitroom/nestjs-libraries/database/prisma/affiliate/affiliate.products.service';
@@ -87,6 +89,8 @@ import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/adm
     AffiliateProductsService,
     AffiliateVideosRepository,
     AffiliateVideosService,
+    LiveRepository,
+    LiveService,
     SignatureService,
     MediaService,
     MediaRepository,

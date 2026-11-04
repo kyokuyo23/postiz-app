@@ -32,6 +32,8 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     'pages_manage_engagement',
     'pages_read_engagement',
     'read_insights',
+    // Live videos on Pages. Opt-in so apps without this permission keep connecting.
+    ...(process.env.FACEBOOK_LIVE === 'true' ? ['publish_video'] : []),
   ];
   override maxConcurrentJob = 500; // Facebook has reasonable rate limits
   editor = 'normal' as const;

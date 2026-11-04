@@ -1,0 +1,29 @@
+# MediaMTX: RTMP ingest for Postiz live (OBS/phone -> VPS -> YouTube/Facebook/TikTok).
+# Every publish/read is checked by the Postiz backend (POST /public/live/auth);
+# the address, with its secret, comes from MTX_AUTHHTTPADDRESS in the compose file.
+logLevel: info
+
+authMethod: http
+authHTTPAddress:
+authHTTPExclude:
+  - action: api
+  - action: metrics
+  - action: pprof
+
+# Internal only (not published): the backend polls it to see who is streaming.
+api: true
+apiAddress: :9997
+
+rtmp: true
+rtmpAddress: :1935
+
+rtsp: false
+hls: false
+webrtc: false
+srt: false
+metrics: false
+pprof: false
+playback: false
+
+paths:
+  "~^live/[a-f0-9]{36}$": {}
