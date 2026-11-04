@@ -49,6 +49,10 @@ export interface ResearchItem {
 export interface CommentsProvider {
   /** Public content search through the platform's official search API */
   searchContent?(integration: Integration, query: string): Promise<ResearchItem[]>;
+  /** False when search exists in code but is not enabled/approved on this server */
+  researchEnabled?(): boolean;
+  /** Shown when a search returns nothing (e.g. limited API access) */
+  researchNote?: string;
   commentCapabilities?: CommentCapabilities;
   /**
    * Returns comments on the account's recent posts published after `since`.

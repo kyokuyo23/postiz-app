@@ -115,7 +115,9 @@ export const Research: FC = () => {
       )}
 
       {results && !results.length && (
-        <EmptyState title={t('no_results', 'No results')} />
+        <EmptyState title={t('no_results', 'No results')}>
+          {channels.find((c) => c.id === integrationId)?.researchNote || null}
+        </EmptyState>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-[16px]">

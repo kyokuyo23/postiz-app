@@ -520,6 +520,13 @@ export class ThreadsProvider extends SocialAbstract implements SocialProvider {
     return comments;
   }
 
+  researchEnabled() {
+    return process.env.THREADS_KEYWORD_SEARCH === 'true';
+  }
+
+  researchNote =
+    'Threads hanya mengembalikan post milik akun sendiri sampai Meta menyetujui Advanced Access untuk threads_keyword_search (App Review). Coba pakai channel YouTube untuk riset publik.';
+
   async searchContent(
     integration: Integration,
     query: string
