@@ -182,6 +182,25 @@ describe('CommentsService.syncIntegration', () => {
     expect(provider.fetchComments.mock.calls[1][0].token).toBe('new');
   });
 
+  it('also refreshes once on a Google 401 "Invalid Credentials"', async () => {
+    const { service, provider, refresh } = setup();
+    provider.fetchComments
+      .mockRejectedValueOnce(Object.assign(new Error('Invalid Credentials'), { code: 401 }))
+      .mockResolvedValueOnce([]);
+    refresh.refresh.mockResolvedValue({ accessToken: 'new' });
+    expect(await service.syncIntegration('int1')).toEqual({ stop: false, added: 0 });
+    expect(provider.fetchComments).toHaveBeenCalledTimes(2);
+    expect(provider.fetchComments.mock.calls[1][0].token).toBe('new');
+  });
+
+  it('asks for a reconnect when the refresh after a 401 fails', async () => {
+    const { service, provider, refresh, repository } = setup();
+    provider.fetchComments.mockRejectedValue(new Error('Invalid Credentials'));
+    refresh.refresh.mockResolvedValue(false);
+    await service.syncIntegration('int1');
+    expect(repository.markSynced).toHaveBeenCalledWith('int1', expect.any(Date), expect.stringContaining('reconnected'));
+  });
+
   it('skips disabled channels without calling the API', async () => {
     const { service, provider, repository } = setup({
       sync: { enabled: true, createdAt: enabledAt, lastSyncAt: null, integration: { ...integration, refreshNeeded: true } },
