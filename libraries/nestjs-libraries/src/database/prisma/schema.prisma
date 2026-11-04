@@ -51,6 +51,7 @@ model Organization {
   affiliateProducts   AffiliateProduct[]
   affiliateVideos     AffiliateVideo[]
   liveSessions        LiveSession[]
+  liveTargets         LiveTarget[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1186,4 +1187,18 @@ model LiveDestination {
   session       LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+}
+
+/// Saved custom RTMP server (Shopee Live, TikTok…). Stream keys change every
+/// session, so only the name and server URL are kept.
+model LiveTarget {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  serverUrl      String
+  createdAt      DateTime     @default(now())
+  deletedAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }

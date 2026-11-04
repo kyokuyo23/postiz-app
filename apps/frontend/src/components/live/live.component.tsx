@@ -18,7 +18,9 @@ import {
   LiveSession,
   LiveStatus,
   useLiveChannels,
+  useLiveCheck,
   useLiveSessions,
+  useLiveTargets,
   useLiveStatus,
   useLiveVideos,
 } from '@gitroom/frontend/components/live/live.hooks';
@@ -27,7 +29,34 @@ interface CustomTarget {
   name: string;
   serverUrl: string;
   streamKey: string;
+  save: boolean;
 }
+
+const CHECK_ICON = { ok: '✅', warn: '⚠️', error: '❌' } as const;
+
+const Checklist: FC<{ integrationIds: string[]; skipIngest: boolean }> = ({
+  integrationIds,
+  skipIngest,
+}) => {
+  const { data, isLoading, mutate } = useLiveCheck(integrationIds);
+  return (
+    <div className="flex flex-col gap-[6px] bg-newBgColorInner border border-newTableBorder rounded-[8px] p-[12px]">
+      <div className="flex items-center gap-[8px]">
+        <div className="text-[13px] font-[600] flex-1">Cek kesiapan</div>
+        <SmallButton onClick={() => mutate()} disabled={isLoading}>
+          {isLoading ? 'Mengecek…' : 'Cek ulang'}
+        </SmallButton>
+      </div>
+      {(data || []).filter((c) => !(skipIngest && c.key === 'ingest')).map((c) => (
+        <div key={c.key} className="flex gap-[8px] text-[13px]">
+          <span>{CHECK_ICON[c.status]}</span>
+          <span className="font-[500] shrink-0">{c.label}</span>
+          <span className="text-textItemBlur">{c.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const STATUS: Record<LiveStatus, { label: string; className: string }> = {
   SCHEDULED: { label: 'Terjadwal', className: 'bg-amber-500/15 text-amber-500' },
@@ -78,33 +107,56 @@ const CopyField: FC<{ label: string; value: string; secret?: boolean }> = ({
   );
 };
 
-const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
+const CreateLive: FC<{
+  onCreated: () => void;
+  quick: boolean;
+  lastSession?: LiveSession;
+}> = ({ onCreated, quick, lastSession }) => {
   const fetch = useFetch();
   const toaster = useToaster();
   const { data: status } = useLiveStatus();
   const { data: channels } = useLiveChannels();
   const [videoPage, setVideoPage] = useState(1);
   const { data: videos } = useLiveVideos(videoPage);
+  const { data: savedTargets, mutate: reloadTargets } = useLiveTargets();
 
   const [source, setSource] = useState<'RTMP' | 'VIDEO'>('RTMP');
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(() =>
+    quick ? `Live ${dayjs().format('DD MMM HH:mm')}` : ''
+  );
   const [description, setDescription] = useState('');
   const [when, setWhen] = useState(defaultTime);
   const [privacy, setPrivacy] = useState<'public' | 'unlisted'>('public');
   const [mediaPath, setMediaPath] = useState('');
   const [loop, setLoop] = useState(true);
   const [duration, setDuration] = useState(60);
-  const [selected, setSelected] = useState<string[]>([]);
+  // Same channels as the last live, so "Live sekarang" is one click.
+  const [selected, setSelected] = useState<string[]>(() =>
+    (lastSession?.destinations || [])
+      .filter((d) => d.kind !== 'custom' && d.integrationId)
+      .map((d) => d.integrationId!)
+  );
+  const [touched, setTouched] = useState(false);
+  const available = (channels || []).map((c) => c.id);
+  const chosen = touched ? selected : selected.filter((id) => available.includes(id));
   const [custom, setCustom] = useState<CustomTarget[]>([]);
   const [autoReply, setAutoReply] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const tiktokInVideo =
     source === 'VIDEO' && custom.some((c) => /tiktok/i.test(`${c.name} ${c.serverUrl}`));
-  const destinationCount = selected.length + custom.length;
+  const destinationCount = chosen.length + custom.length;
 
-  const toggle = (id: string) =>
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const toggle = (id: string) => {
+    setTouched(true);
+    setSelected(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
+  };
+  const addCustom = (name: string, serverUrl = '', save = !serverUrl) =>
+    setCustom((all) => [...all, { name, serverUrl, streamKey: '', save }]);
+  const removeSaved = async (id: string) => {
+    await fetch(`/live/targets/${id}`, { method: 'DELETE' });
+    reloadTargets();
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -119,14 +171,14 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
         title: title.trim(),
         description: description.trim() || undefined,
         source,
-        scheduledAt: new Date(when).toISOString(),
+        scheduledAt: quick ? new Date().toISOString() : new Date(when).toISOString(),
         privacy,
         autoReply,
         ...(source === 'VIDEO'
           ? { mediaPath, loop, durationMinutes: Number(duration) || undefined }
           : {}),
         destinations: [
-          ...selected.map((id) => ({
+          ...chosen.map((id) => ({
             kind: channels?.find((c) => c.id === id)?.identifier,
             integrationId: id,
           })),
@@ -139,7 +191,8 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
       toaster.show(await readError(res, 'Gagal membuat live'), 'warning');
       return;
     }
-    toaster.show('Live dijadwalkan', 'success');
+    toaster.show(quick ? 'Live siap: mulai streaming dari OBS/HP' : 'Live dijadwalkan', 'success');
+    reloadTargets();
     setTitle('');
     setDescription('');
     setCustom([]);
@@ -150,7 +203,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
   return (
     <Card>
       <form onSubmit={submit} className="flex flex-col gap-[16px]">
-        <div className="text-[16px] font-[600]">Jadwalkan live</div>
+        <div className="text-[16px] font-[600]">{quick ? 'Live sekarang' : 'Jadwalkan live'}</div>
 
         <Segmented
           value={source}
@@ -184,6 +237,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
               placeholder="Live jualan malam ini"
             />
           </div>
+          {!quick && (
           <div>
             <Label hint="WIB, waktu perangkatmu">Mulai</Label>
             <input
@@ -193,6 +247,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
               onChange={(e) => setWhen(e.target.value)}
             />
           </div>
+          )}
         </div>
 
         <div>
@@ -275,7 +330,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
                 onClick={() => toggle(c.id)}
                 className={clsx(
                   'flex items-center gap-[8px] h-[38px] px-[12px] rounded-[8px] border text-[13px]',
-                  selected.includes(c.id)
+                  chosen.includes(c.id)
                     ? 'border-btnPrimary bg-btnPrimary/10'
                     : 'border-newTableBorder'
                 )}
@@ -297,7 +352,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
 
         <div className="flex flex-col gap-[8px]">
           {custom.map((c, i) => (
-            <div key={i} className="grid grid-cols-1 md:grid-cols-[160px_1fr_1fr_auto] gap-[8px] items-center">
+            <div key={i} className="grid grid-cols-1 md:grid-cols-[150px_1fr_1fr_auto] gap-[8px] items-center">
               <input
                 className={inputClass}
                 value={c.name}
@@ -335,20 +390,49 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
                   setCustom((all) => all.map((x, j) => (j === i ? { ...x, streamKey: e.target.value } : x)))
                 }
               />
-              <SmallButton onClick={() => setCustom((all) => all.filter((_, j) => j !== i))}>Hapus</SmallButton>
+              <div className="flex items-center gap-[8px]">
+                <label className="flex items-center gap-[4px] text-[12px] whitespace-nowrap" title="Simpan nama + server URL (stream key tidak disimpan)">
+                  <input
+                    type="checkbox"
+                    checked={c.save}
+                    onChange={(e) =>
+                      setCustom((all) => all.map((x, j) => (j === i ? { ...x, save: e.target.checked } : x)))
+                    }
+                  />
+                  Simpan
+                </label>
+                <SmallButton onClick={() => setCustom((all) => all.filter((_, j) => j !== i))}>Hapus</SmallButton>
+              </div>
             </div>
           ))}
-          <div className="flex flex-wrap gap-[8px]">
-            <SmallButton
-              onClick={() => setCustom((all) => [...all, { name: 'TikTok', serverUrl: '', streamKey: '' }])}
-            >
-              + TikTok
-            </SmallButton>
-            <SmallButton
-              onClick={() => setCustom((all) => [...all, { name: '', serverUrl: '', streamKey: '' }])}
-            >
-              + RTMP lain (Instagram, Shopee Live…)
-            </SmallButton>
+          <div className="flex flex-wrap gap-[8px] items-center">
+            {(savedTargets || []).map((t) => (
+              <span key={t.id} className="flex items-center rounded-[8px] border border-newTableBorder overflow-hidden">
+                <button
+                  type="button"
+                  className="h-[32px] px-[10px] text-[13px] hover:bg-btnSimple"
+                  title={t.serverUrl}
+                  onClick={() => addCustom(t.name, t.serverUrl, false)}
+                >
+                  + {t.name}
+                </button>
+                <button
+                  type="button"
+                  className="h-[32px] px-[8px] text-[13px] text-textItemBlur hover:text-red-500 border-s border-newTableBorder"
+                  aria-label={`Hapus ${t.name}`}
+                  onClick={() => removeSaved(t.id)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {!(savedTargets || []).some((t) => /tiktok/i.test(t.name)) && (
+              <SmallButton onClick={() => addCustom('TikTok')}>+ TikTok</SmallButton>
+            )}
+            {!(savedTargets || []).some((t) => /shopee/i.test(t.name)) && (
+              <SmallButton onClick={() => addCustom('Shopee Live')}>+ Shopee Live</SmallButton>
+            )}
+            <SmallButton onClick={() => addCustom('')}>+ RTMP lain</SmallButton>
           </div>
           <div className="text-[12px] text-textItemBlur">
             TikTok tidak punya API live: ambil server URL dan stream key dari TikTok LIVE Studio / LIVE
@@ -367,7 +451,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
           )}
         </div>
 
-        {selected.some((id) => channels?.find((c) => c.id === id)?.identifier === 'youtube') && (
+        {chosen.some((id) => channels?.find((c) => c.id === id)?.identifier === 'youtube') && (
           <div className="w-[220px]">
             <Label>Privasi YouTube</Label>
             <select
@@ -380,6 +464,8 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
             </select>
           </div>
         )}
+
+        <Checklist integrationIds={chosen} skipIngest={source === 'VIDEO'} />
 
         <div className="flex flex-col gap-[4px]">
           <label className="flex items-center gap-[8px] text-[14px]">
@@ -399,7 +485,7 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
             variant="primary"
             disabled={saving || tiktokInVideo || (source === 'VIDEO' && !mediaPath)}
           >
-            {saving ? 'Menyiapkan…' : 'Jadwalkan live'}
+            {saving ? 'Menyiapkan…' : quick ? '● Mulai live sekarang' : 'Jadwalkan live'}
           </SmallButton>
         </div>
       </form>
@@ -478,7 +564,14 @@ const SessionCard: FC<{ session: LiveSession; onChange: () => void }> = ({ sessi
 
 export const LivePage: FC = () => {
   const { data: sessions, mutate } = useLiveSessions();
-  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<'quick' | 'schedule' | null>(null);
+  const lastSession = useMemo(
+    () =>
+      [...(sessions || [])].sort(
+        (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
+      )[0],
+    [sessions]
+  );
   const sorted = useMemo(
     () =>
       [...(sessions || [])].sort((a, b) => {
@@ -493,20 +586,34 @@ export const LivePage: FC = () => {
       title="Live"
       description="Live sekali, tayang di YouTube, Facebook, TikTok dan RTMP lain sekaligus — dari OBS/HP atau dari video."
       actions={
-        <SmallButton variant="primary" onClick={() => setShowForm((s) => !s)}>
-          {showForm ? 'Tutup' : '+ Jadwalkan live'}
-        </SmallButton>
+        <div className="flex gap-[8px]">
+          {form ? (
+            <SmallButton onClick={() => setForm(null)}>Tutup</SmallButton>
+          ) : (
+            <>
+              <SmallButton variant="danger" onClick={() => setForm('quick')}>
+                ● Live sekarang
+              </SmallButton>
+              <SmallButton variant="primary" onClick={() => setForm('schedule')}>
+                + Jadwalkan live
+              </SmallButton>
+            </>
+          )}
+        </div>
       }
     >
-      {showForm && (
+      {form && (
         <CreateLive
+          key={form}
+          quick={form === 'quick'}
+          lastSession={lastSession}
           onCreated={() => {
-            setShowForm(false);
+            setForm(null);
             mutate();
           }}
         />
       )}
-      {sessions && !sessions.length && !showForm && (
+      {sessions && !sessions.length && !form && (
         <EmptyState title="Belum ada live">
           Klik “Jadwalkan live” untuk mulai multistream ke YouTube, Facebook dan TikTok.
         </EmptyState>

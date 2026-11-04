@@ -16,7 +16,12 @@ import { Organization } from '@prisma/client';
 import { Response } from 'express';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { LiveService } from '@gitroom/nestjs-libraries/database/prisma/live/live.service';
-import { LiveAuthDto, LiveSessionDto } from '@gitroom/nestjs-libraries/dtos/live/live.dto';
+import {
+  LiveAuthDto,
+  LiveCheckQueryDto,
+  LiveSessionDto,
+  LiveTargetDto,
+} from '@gitroom/nestjs-libraries/dtos/live/live.dto';
 
 @ApiTags('Live')
 @Controller('/live')
@@ -35,6 +40,29 @@ export class LiveController implements OnModuleInit, OnModuleDestroy {
   @Get('/status')
   status() {
     return this._liveService.status();
+  }
+
+  @Get('/check')
+  check(@GetOrgFromRequest() org: Organization, @Query() query: LiveCheckQueryDto) {
+    return this._liveService.check(
+      org.id,
+      (query.integrations || '').split(',').map((x) => x.trim()).filter(Boolean)
+    );
+  }
+
+  @Get('/targets')
+  targets(@GetOrgFromRequest() org: Organization) {
+    return this._liveService.listTargets(org.id);
+  }
+
+  @Post('/targets')
+  saveTarget(@GetOrgFromRequest() org: Organization, @Body() body: LiveTargetDto) {
+    return this._liveService.saveTarget(org.id, body);
+  }
+
+  @Delete('/targets/:id')
+  deleteTarget(@GetOrgFromRequest() org: Organization, @Param('id') id: string) {
+    return this._liveService.deleteTarget(org.id, id);
   }
 
   @Get('/')

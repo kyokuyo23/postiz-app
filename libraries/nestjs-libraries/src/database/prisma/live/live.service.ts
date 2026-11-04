@@ -11,7 +11,11 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/live/live.repository';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
-import { LiveAuthDto, LiveSessionDto } from '@gitroom/nestjs-libraries/dtos/live/live.dto';
+import {
+  LiveAuthDto,
+  LiveSessionDto,
+  LiveTargetDto,
+} from '@gitroom/nestjs-libraries/dtos/live/live.dto';
 import { localUploadPath } from '@gitroom/nestjs-libraries/affiliate/hyperframes.renderer';
 import {
   fileLiveArgs,
@@ -25,7 +29,9 @@ import {
   createYoutubeLive,
   endFacebookLive,
   endYoutubeLive,
+  facebookLiveCheck,
   LiveApiError,
+  youtubeLiveCheck,
 } from '@gitroom/nestjs-libraries/live/live.platforms';
 import {
   ChatGuard,
@@ -78,6 +84,13 @@ export const joinRtmp = (server: string, key: string) =>
   `${server.trim().replace(/\/+$/, '')}/${key.trim().replace(/^\/+/, '')}`;
 
 const errorText = (e: unknown) => (e as Error)?.message || String(e);
+
+export interface LiveCheck {
+  key: string;
+  label: string;
+  status: 'ok' | 'warn' | 'error';
+  message: string;
+}
 
 interface ChatState {
   chatId?: string | null;
@@ -170,6 +183,13 @@ export class LiveService {
           name: (d.name || 'Custom RTMP').trim().slice(0, 60),
           rtmpUrl: AuthService.fixedEncryption(url),
         });
+        if (d.save) {
+          await this._repository.saveTarget(
+            orgId,
+            (d.name || 'Custom RTMP').trim().slice(0, 60),
+            d.serverUrl.trim()
+          );
+        }
         continue;
       }
       const integration = d.integrationId
@@ -220,6 +240,95 @@ export class LiveService {
 
     this.startWorker();
     return this.publicView((await this._repository.getById(session.id))!);
+  }
+
+  // ------------------------------------------------------- saved targets
+
+  listTargets(orgId: string) {
+    return this._repository.listTargets(orgId);
+  }
+
+  async saveTarget(orgId: string, body: LiveTargetDto) {
+    const server = body.serverUrl.trim();
+    if (!(await isSafeRtmpUrl(joinRtmp(server, 'check')))) {
+      throw new BadRequestException('Server URL harus rtmp:// atau rtmps:// ke host publik');
+    }
+    return this._repository.saveTarget(orgId, body.name.trim(), server);
+  }
+
+  async deleteTarget(orgId: string, id: string) {
+    await this._repository.deleteTarget(orgId, id);
+    return { ok: true };
+  }
+
+  // ------------------------------------------------------------ preflight
+
+  /** Ready-to-live checklist: ingest server and every selected channel. */
+  async check(orgId: string, integrationIds: string[]): Promise<LiveCheck[]> {
+    const checks: LiveCheck[] = [];
+    if (!ingestEnabled()) {
+      checks.push({
+        key: 'ingest',
+        label: 'Server live (OBS/HP)',
+        status: 'error',
+        message: 'Belum aktif: set LIVE_RELAY_SECRET di backend.env dan jalankan MediaMTX (--profile live).',
+      });
+    } else {
+      let reachable = false;
+      try {
+        reachable = (
+          await fetch(`${mediamtxApi()}/v3/paths/list?itemsPerPage=1`, { signal: AbortSignal.timeout(4000) })
+        ).ok;
+      } catch {
+        reachable = false;
+      }
+      checks.push({
+        key: 'ingest',
+        label: 'Server live (OBS/HP)',
+        status: reachable ? 'ok' : 'error',
+        message: reachable
+          ? `Siap menerima stream di ${ingestUrl()}`
+          : 'MediaMTX tidak bisa dihubungi: cek container mediamtx (docker ps).',
+      });
+    }
+
+    for (const id of integrationIds.slice(0, 10)) {
+      const integration = await this._integrations.getIntegrationById(orgId, id);
+      if (!integration || integration.deletedAt) continue;
+      const label = `${integration.name} (${integration.providerIdentifier === 'youtube' ? 'YouTube' : 'Facebook'})`;
+      try {
+        if (integration.disabled || integration.refreshNeeded) {
+          throw new LiveApiError('Channel perlu di-reconnect di Postiz.');
+        }
+        const fresh = await this.freshIntegration(orgId, id);
+        if (integration.providerIdentifier === 'youtube') {
+          await youtubeLiveCheck(fresh.token);
+          checks.push({ key: id, label, status: 'ok', message: 'Siap live. Broadcast dibuat otomatis.' });
+        } else if (integration.providerIdentifier === 'facebook') {
+          if (process.env.FACEBOOK_LIVE !== 'true') {
+            throw new LiveApiError('Set FACEBOOK_LIVE=true di backend.env lalu reconnect Page ini.');
+          }
+          const fb = await facebookLiveCheck(fresh.internalId, fresh.token);
+          if (fb.hasPublishVideo === false) {
+            throw new LiveApiError('Izin live (publish_video) belum ada: reconnect Page ini di Postiz.');
+          }
+          const lowFollowers = fb.followers !== null && fb.followers < 100;
+          checks.push({
+            key: id,
+            label,
+            status: lowFollowers || fb.hasPublishVideo === null ? 'warn' : 'ok',
+            message: lowFollowers
+              ? `Baru ${fb.followers} pengikut: Facebook mensyaratkan minimal 100 pengikut untuk live lewat API.`
+              : fb.hasPublishVideo === null
+                ? 'Izin live belum bisa dicek; akan terlihat saat live dimulai.'
+                : 'Siap live. Live video dibuat otomatis saat stream masuk.',
+          });
+        }
+      } catch (e) {
+        checks.push({ key: id, label, status: 'error', message: errorText(e) });
+      }
+    }
+    return checks;
   }
 
   async stop(orgId: string, id: string) {

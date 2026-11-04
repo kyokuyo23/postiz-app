@@ -93,3 +93,35 @@ export const useLiveChannels = () => {
   }, [fetch]);
   return useSWR('live-channels', load, { revalidateOnFocus: false });
 };
+
+export interface LiveTarget {
+  id: string;
+  name: string;
+  serverUrl: string;
+}
+
+export const useLiveTargets = () => {
+  const fetch = useFetch();
+  const load = useCallback(async () => {
+    return (await (await fetch('/live/targets')).json()) as LiveTarget[];
+  }, [fetch]);
+  return useSWR('live-targets', load, { revalidateOnFocus: false });
+};
+
+export interface LiveCheck {
+  key: string;
+  label: string;
+  status: 'ok' | 'warn' | 'error';
+  message: string;
+}
+
+export const useLiveCheck = (integrationIds: string[]) => {
+  const fetch = useFetch();
+  const ids = [...integrationIds].sort().join(',');
+  const load = useCallback(async () => {
+    return (await (
+      await fetch(`/live/check?integrations=${encodeURIComponent(ids)}`)
+    ).json()) as LiveCheck[];
+  }, [fetch, ids]);
+  return useSWR(`live-check-${ids}`, load, { revalidateOnFocus: false });
+};
