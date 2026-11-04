@@ -43,6 +43,30 @@ export class LiveDestinationDto {
   @IsString()
   @MaxLength(500)
   streamKey?: string;
+
+  /** Custom targets: remember name + server URL (never the key). */
+  @IsOptional()
+  @IsBoolean()
+  save?: boolean;
+}
+
+export class LiveTargetDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  name: string;
+
+  @IsString()
+  @MaxLength(500)
+  serverUrl: string;
+}
+
+export class LiveCheckQueryDto {
+  /** Comma-separated integration ids */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  integrations?: string;
 }
 
 export class LiveSessionDto {

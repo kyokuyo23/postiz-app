@@ -30,6 +30,12 @@ sudo docker compose -f docker-compose.vps-small.yaml --env-file backend.env --pr
 
 Server untuk OBS otomatis `rtmp://<domain API>:1935/live`. Kalau domain API lewat proxy (mis. Cloudflare oranye), RTMP tidak lewat: set `LIVE_RTMP_PUBLIC_URL=rtmp://<IP VPS>:1935/live` di backend.env.
 
+## Cara cepat
+
+- **● Live sekarang**: judul dan channel otomatis diisi dari live terakhir, langsung dapat server URL + stream key.
+- **Cek kesiapan** (muncul di form): server live, YouTube (channel sudah bisa live?), Facebook (izin publish_video, minimal 100 pengikut). ✅ siap, ⚠️ mungkin ditolak, ❌ perlu diperbaiki.
+- **Tujuan tersimpan**: centang "Simpan" di baris Shopee Live / TikTok / RTMP lain. Nama + server URL disimpan, stream key tidak (berganti tiap sesi), jadi lain kali cukup klik "+ Shopee Live" dan tempel key baru.
+
 ## Setelan OBS
 
 Settings → Stream → Service **Custom**: Server dan Stream key dari kartu live di Postiz.

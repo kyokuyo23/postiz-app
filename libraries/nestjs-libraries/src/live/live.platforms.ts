@@ -190,3 +190,36 @@ export const endFacebookLive = async (pageToken: string, liveId: string) => {
     access_token: pageToken,
   }).catch(() => undefined);
 };
+
+// ---------------------------------------------------------------- preflight
+
+/** Throws with a readable hint when the channel cannot go live. */
+export const youtubeLiveCheck = async (token: string) => {
+  await yt(token, '/liveBroadcasts?part=id&mine=true&maxResults=1&broadcastType=all');
+};
+
+/** Followers and whether the Page token carries publish_video (null = unknown). */
+export const facebookLiveCheck = async (pageId: string, token: string) => {
+  const page = await json(
+    await fetch(
+      `${FB}/${encodeURIComponent(pageId)}?fields=followers_count,fan_count&access_token=${encodeURIComponent(token)}`,
+      { signal: AbortSignal.timeout(15000) }
+    )
+  );
+  if (page?.error) throw new LiveApiError(page.error.message || 'Facebook error');
+  let hasPublishVideo: boolean | null = null;
+  try {
+    const debug = await json(
+      await fetch(
+        `${FB}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(15000) }
+      )
+    );
+    const scopes: string[] | undefined = debug?.data?.scopes;
+    if (Array.isArray(scopes)) hasPublishVideo = scopes.includes('publish_video');
+  } catch {
+    hasPublishVideo = null;
+  }
+  const followers = Number(page.followers_count ?? page.fan_count);
+  return { followers: Number.isFinite(followers) ? followers : null, hasPublishVideo };
+};

@@ -18,8 +18,36 @@ const withDestinations = { destinations: { orderBy: { createdAt: 'asc' } } } as 
 export class LiveRepository {
   constructor(
     private _live: PrismaRepository<'liveSession'>,
-    private _destination: PrismaRepository<'liveDestination'>
+    private _destination: PrismaRepository<'liveDestination'>,
+    private _target: PrismaRepository<'liveTarget'>
   ) {}
+
+  listTargets(orgId: string) {
+    return this._target.model.liveTarget.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    });
+  }
+
+  async saveTarget(orgId: string, name: string, serverUrl: string) {
+    const existing = await this._target.model.liveTarget.findFirst({
+      where: { organizationId: orgId, deletedAt: null, serverUrl },
+    });
+    if (existing) {
+      return this._target.model.liveTarget.update({ where: { id: existing.id }, data: { name } });
+    }
+    return this._target.model.liveTarget.create({
+      data: { organizationId: orgId, name, serverUrl },
+    });
+  }
+
+  deleteTarget(orgId: string, id: string) {
+    return this._target.model.liveTarget.updateMany({
+      where: { id, organizationId: orgId },
+      data: { deletedAt: new Date() },
+    });
+  }
 
   list(orgId: string) {
     return this._live.model.liveSession.findMany({
