@@ -25,6 +25,16 @@ const MAX_AUTOMATED_PER_RUN = 30;
 const errorMessage = (e: unknown) =>
   (e as any)?.message || (typeof e === 'string' ? e : 'Unknown error');
 
+/** 401 from a platform SDK (e.g. googleapis GaxiosError "Invalid Credentials"). */
+export const isAuthError = (e: unknown) => {
+  const err = e as { code?: unknown; status?: unknown; response?: { status?: unknown }; message?: unknown };
+  const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+  return (
+    status === 401 ||
+    /invalid credentials|unauthenticated|invalid_token/i.test(String(err?.message || ''))
+  );
+};
+
 @Injectable()
 export class CommentsService {
   constructor(
@@ -64,7 +74,9 @@ export class CommentsService {
     try {
       return await run(current);
     } catch (e) {
-      if (e instanceof RefreshToken && !retried) {
+      // Google client libraries throw their own 401 ("Invalid Credentials")
+      // instead of RefreshToken: refresh once and retry for those too.
+      if ((e instanceof RefreshToken || isAuthError(e)) && !retried) {
         return this.withFreshToken(integration, run, true);
       }
       throw e;
