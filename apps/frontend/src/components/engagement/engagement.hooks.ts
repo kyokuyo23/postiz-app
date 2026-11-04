@@ -16,6 +16,7 @@ export interface CommentSource {
   refreshNeeded: boolean;
   capabilities?: { reply: boolean; hide: boolean; directMessage: boolean };
   canResearch: boolean;
+  researchNote?: string | null;
   enabled: boolean;
   lastSyncAt: string | null;
   lastError: string | null;

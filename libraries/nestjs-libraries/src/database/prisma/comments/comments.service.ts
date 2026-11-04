@@ -96,7 +96,9 @@ export class CommentsService {
           disabled: i.disabled,
           refreshNeeded: i.refreshNeeded || i.inBetweenSteps,
           capabilities: provider.commentCapabilities,
-          canResearch: !!provider.searchContent,
+          canResearch:
+            !!provider.searchContent && provider.researchEnabled?.() !== false,
+          researchNote: provider.researchNote || null,
           enabled: !!sync?.enabled,
           lastSyncAt: sync?.lastSyncAt || null,
           lastError: sync?.lastError || null,
@@ -412,7 +414,7 @@ export class CommentsService {
       throw new BadRequestException('Channel not found');
     }
     const provider = this.provider(integration.providerIdentifier);
-    if (!provider?.searchContent) {
+    if (!provider?.searchContent || provider.researchEnabled?.() === false) {
       throw new BadRequestException('Research is not supported for this channel');
     }
     try {
