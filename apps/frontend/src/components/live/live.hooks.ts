@@ -27,6 +27,7 @@ export interface LiveSession {
   loop: boolean;
   durationMinutes: number | null;
   privacy: string;
+  autoReply: boolean;
   status: LiveStatus;
   scheduledAt: string;
   startedAt: string | null;

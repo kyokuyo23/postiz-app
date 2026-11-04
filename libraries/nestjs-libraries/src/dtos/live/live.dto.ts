@@ -84,6 +84,11 @@ export class LiveSessionDto {
   @IsIn(['public', 'unlisted'])
   privacy?: 'public' | 'unlisted';
 
+  /** Auto-reply to live chat with the comment automation rules. */
+  @IsOptional()
+  @IsBoolean()
+  autoReply?: boolean;
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(5)

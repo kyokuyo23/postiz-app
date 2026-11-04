@@ -1150,6 +1150,8 @@ model LiveSession {
   loop            Boolean           @default(false)
   durationMinutes Int?
   privacy         String            @default("public")
+  /// Answer live chat (YouTube) / live comments (Facebook) with the comment automation rules
+  autoReply       Boolean           @default(false)
   status          String            @default("SCHEDULED") // SCHEDULED, LIVE, RECONNECTING, ENDED, ERROR
   scheduledAt     DateTime
   startedAt       DateTime?

@@ -1,6 +1,9 @@
 jest.mock('@gitroom/helpers/auth/auth.service', () => ({
   AuthService: { fixedEncryption: (v: string) => `enc:${v}`, fixedDecryption: (v: string) => v.slice(4) },
 }));
+jest.mock('@gitroom/nestjs-libraries/database/prisma/comments/comment.automations.service', () => ({
+  CommentAutomationsService: class {},
+}));
 jest.mock('@gitroom/nestjs-libraries/database/prisma/integrations/integration.service', () => ({
   IntegrationService: class {},
 }));
@@ -72,7 +75,7 @@ const setup = (sessions: any[], ready: string[]) => {
     ok: true,
     json: async () => ({ items: ready.map((name) => ({ name, ready: true })) }),
   }) as any;
-  return { service: new LiveService(repo as any, integrations as any, {} as any), repo };
+  return { service: new LiveService(repo as any, integrations as any, {} as any, {} as any), repo };
 };
 
 beforeEach(() => {

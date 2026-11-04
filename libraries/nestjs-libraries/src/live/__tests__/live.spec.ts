@@ -1,6 +1,9 @@
 jest.mock('@gitroom/helpers/auth/auth.service', () => ({
   AuthService: { fixedEncryption: (v: string) => `enc:${v}`, fixedDecryption: (v: string) => v.slice(4) },
 }));
+jest.mock('@gitroom/nestjs-libraries/database/prisma/comments/comment.automations.service', () => ({
+  CommentAutomationsService: class {},
+}));
 jest.mock('@gitroom/nestjs-libraries/database/prisma/integrations/integration.service', () => ({
   IntegrationService: class {},
 }));
@@ -86,7 +89,7 @@ describe('custom RTMP targets', () => {
 describe('MediaMTX auth hook', () => {
   const setup = (session: any) => {
     const repo = { byStreamKey: jest.fn().mockResolvedValue(session) };
-    return { service: new LiveService(repo as any, {} as any, {} as any), repo };
+    return { service: new LiveService(repo as any, {} as any, {} as any, {} as any), repo };
   };
   beforeEach(() => {
     process.env.LIVE_RELAY_SECRET = SECRET;
