@@ -50,6 +50,7 @@ model Organization {
   commentLogs         CommentAutomationLog[]
   affiliateProducts   AffiliateProduct[]
   affiliateVideos     AffiliateVideo[]
+  liveSessions        LiveSession[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1134,4 +1135,53 @@ model AffiliateVideo {
   @@index([organizationId])
   @@index([productId])
   @@index([status])
+}
+
+/// Live broadcast: real stream from OBS/phone (RTMP ingest) or a video file
+/// played as live, relayed to YouTube, Facebook Pages and custom RTMP targets.
+model LiveSession {
+  id              String            @id @default(uuid())
+  organizationId  String
+  title           String
+  description     String?
+  source          String            // RTMP | VIDEO
+  streamKey       String            @unique
+  mediaPath       String?
+  loop            Boolean           @default(false)
+  durationMinutes Int?
+  privacy         String            @default("public")
+  status          String            @default("SCHEDULED") // SCHEDULED, LIVE, RECONNECTING, ENDED, ERROR
+  scheduledAt     DateTime
+  startedAt       DateTime?
+  endsAt          DateTime?
+  droppedAt       DateTime?
+  endedAt         DateTime?
+  error           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+  organization    Organization      @relation(fields: [organizationId], references: [id])
+  destinations    LiveDestination[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model LiveDestination {
+  id            String      @id @default(uuid())
+  sessionId     String
+  kind          String      // youtube | facebook | custom
+  integrationId String?
+  name          String
+  /// Encrypted RTMP(S) URL including the stream key
+  rtmpUrl       String?
+  externalId    String?
+  watchUrl      String?
+  status        String      @default("PENDING") // PENDING, READY, LIVE, ENDED, ERROR
+  error         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  session       LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }

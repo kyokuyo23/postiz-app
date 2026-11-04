@@ -38,6 +38,24 @@ services:
       temporal:
         condition: service_started
 
+  # Live streaming ingest (RTMP). Only starts with: --profile live
+  # Needs LIVE_RELAY_SECRET in backend.env and port 1935 open on the VPS firewall.
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.2
+    container_name: mediamtx
+    restart: always
+    profiles: ['live']
+    environment:
+      MTX_AUTHHTTPADDRESS: 'http://postiz:3000/public/live/auth?secret=${LIVE_RELAY_SECRET:-disabled}'
+    ports:
+      - '1935:1935'
+    expose:
+      - '9997'
+    volumes:
+      - ./var/docker/mediamtx.yml:/mediamtx.yml:ro
+    depends_on:
+      - postiz
+
   caddy:
     image: caddy:2
     container_name: caddy

@@ -170,6 +170,37 @@ export const useMenuItem = () => {
       path: '/affiliate',
     },
     {
+      name: t('live', 'Live'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <rect
+            x="2"
+            y="6"
+            width="14"
+            height="12"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+          <path
+            d="M16 10.5L21 7.5V16.5L16 13.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="7" cy="12" r="1.6" fill="currentColor" />
+        </svg>
+      ),
+      path: '/live',
+    },
+    {
       name: t('research', 'Research'),
       icon: (
         <svg
