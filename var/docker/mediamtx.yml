@@ -24,6 +24,7 @@ srt: false
 metrics: false
 pprof: false
 playback: false
+moq: false
 
 paths:
   "~^live/[a-f0-9]{36}$": {}
