@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, FormEvent, useMemo, useState } from 'react';
+import { CSSProperties, FC, FormEvent, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
@@ -307,6 +307,11 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
                 }
               />
               <input
+                type="url"
+                name={`rtmp-server-${i}`}
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
                 className={inputClass}
                 value={c.serverUrl}
                 placeholder="Server URL (rtmp://…)"
@@ -314,9 +319,15 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
                   setCustom((all) => all.map((x, j) => (j === i ? { ...x, serverUrl: e.target.value } : x)))
                 }
               />
+              {/* Text field masked with CSS (not type=password) so browsers never autofill a saved login here. */}
               <input
-                type="password"
+                type="text"
+                name={`rtmp-key-${i}`}
                 autoComplete="off"
+                spellCheck={false}
+                data-lpignore="true"
+                data-1p-ignore="true"
+                style={{ WebkitTextSecurity: 'disc' } as CSSProperties}
                 className={inputClass}
                 value={c.streamKey}
                 placeholder="Stream key"
@@ -343,6 +354,12 @@ const CreateLive: FC<{ onCreated: () => void }> = ({ onCreated }) => {
             TikTok tidak punya API live: ambil server URL dan stream key dari TikTok LIVE Studio / LIVE
             Center (hanya untuk akun yang memenuhi syarat LIVE). Stream key disimpan terenkripsi.
           </div>
+          {custom.some((c) => c.serverUrl && !/^rtmps?:\/\//i.test(c.serverUrl.trim())) && (
+            <div className="text-[13px] text-red-500">
+              Server URL harus diawali rtmp:// atau rtmps:// (bukan email/password). Salin dari TikTok LIVE Studio /
+              LIVE Center.
+            </div>
+          )}
           {tiktokInVideo && (
             <div className="text-[13px] text-red-500">
               TikTok melarang video rekaman di LIVE. Hapus TikTok atau pakai mode “Live dari OBS / HP”.
