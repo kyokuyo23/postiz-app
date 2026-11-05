@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { Integration } from '@prisma/client';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
@@ -75,7 +75,20 @@ export class RefreshIntegrationService {
   ): Promise<AuthTokenDetails | false> {
     const refresh: false | AuthTokenDetails = await socialProvider
       .refreshToken(integration.refreshToken)
-      .catch((err) => false);
+      .catch((err) => {
+        // Only the platform's error code/description, never tokens.
+        const detail =
+          err?.response?.data?.error_description ||
+          err?.response?.data?.error ||
+          err?.message ||
+          String(err);
+        Logger.warn(
+          `Token refresh failed for ${integration.providerIdentifier} ${integration.id} (${
+            integration.refreshToken ? 'has refresh token' : 'NO refresh token'
+          }): ${String(detail).slice(0, 300)}`
+        );
+        return false as const;
+      });
 
     if (!refresh || !refresh.accessToken) {
       await this._integrationService.refreshNeeded(
