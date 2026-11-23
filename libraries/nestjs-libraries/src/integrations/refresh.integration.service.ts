@@ -7,6 +7,12 @@ import {
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { TemporalService } from 'nestjs-temporal-core';
+import {
+  isTransientRefreshError,
+  REFRESH_RETRY_DELAYS,
+} from '@gitroom/nestjs-libraries/integrations/refresh.errors';
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 @Injectable()
 export class RefreshIntegrationService {
@@ -73,22 +79,40 @@ export class RefreshIntegrationService {
     socialProvider: SocialProvider,
     cause = ''
   ): Promise<AuthTokenDetails | false> {
-    const refresh: false | AuthTokenDetails = await socialProvider
-      .refreshToken(integration.refreshToken)
-      .catch((err) => {
+    let refresh: false | AuthTokenDetails = false;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        refresh = await socialProvider.refreshToken(integration.refreshToken);
+        break;
+      } catch (err: any) {
         // Only the platform's error code/description, never tokens.
         const detail =
           err?.response?.data?.error_description ||
           err?.response?.data?.error ||
           err?.message ||
           String(err);
+        const transient = isTransientRefreshError(err);
         Logger.warn(
           `Token refresh failed for ${integration.providerIdentifier} ${integration.id} (${
             integration.refreshToken ? 'has refresh token' : 'NO refresh token'
-          }): ${String(detail).slice(0, 300)}`
+          }, ${transient ? `temporary, attempt ${attempt + 1}` : 'rejected'}): ${String(
+            detail
+          ).slice(0, 300)}`
         );
-        return false as const;
-      });
+
+        if (!transient) {
+          refresh = false;
+          break;
+        }
+        if (attempt < REFRESH_RETRY_DELAYS.length) {
+          await sleep(REFRESH_RETRY_DELAYS[attempt]);
+          continue;
+        }
+        // The platform could not be reached: keep the channel connected and
+        // let the next post, sync or refresh try again.
+        return false;
+      }
+    }
 
     if (!refresh || !refresh.accessToken) {
       await this._integrationService.refreshNeeded(
