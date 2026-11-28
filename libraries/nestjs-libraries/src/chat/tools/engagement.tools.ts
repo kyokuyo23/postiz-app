@@ -310,9 +310,20 @@ export class ContentResearchTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'contentResearch',
-      description: `Searches public content on a connected channel's platform by keyword (YouTube videos, Threads posts when keyword search is enabled) to find trending topics, competitors and content ideas. Use a channel id from engagementChannels where canResearch is true.`,
+      description: `Searches public content by keyword to find trending topics, competitors and content ideas.
+Two ways:
+- "platform" (tiktok, youtube, instagram, threads, facebook): public search through ScrapeCreators, no connected channel needed. Works only when the server has SCRAPECREATORS_API_KEY; each new search spends ScrapeCreators credits (repeats within an hour are cached).
+- "integrationId": search through a connected channel's own platform API (a channel from engagementChannels where canResearch is true).
+Give one of them. Prefer "platform" for TikTok, Instagram, Threads and Facebook.`,
       inputSchema: z.object({
-        integrationId: z.string().describe('Channel id from engagementChannels'),
+        platform: z
+          .enum(['tiktok', 'youtube', 'instagram', 'threads', 'facebook'])
+          .optional()
+          .describe('Search this platform through ScrapeCreators'),
+        integrationId: z
+          .string()
+          .optional()
+          .describe('Or: channel id from engagementChannels'),
         query: z.string().min(2).max(100).describe('Keyword or topic'),
       }),
       mcp: {
@@ -327,6 +338,17 @@ export class ContentResearchTool implements AgentToolInterface {
       outputSchema: anyOutput,
       execute: async (inputData, context) => {
         const orgId = orgIdFrom(inputData, context);
+        if (inputData.platform) {
+          return {
+            output: await this._comments.keywordResearch(
+              inputData.platform,
+              inputData.query
+            ),
+          };
+        }
+        if (!inputData.integrationId) {
+          return { output: 'Give a platform or an integrationId' };
+        }
         return {
           output: await this._comments.research(
             orgId,

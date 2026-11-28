@@ -9,6 +9,7 @@ import {
   CommentStatsQueryDto,
   CommentsListQueryDto,
   HideCommentDto,
+  KeywordResearchQueryDto,
   ReplyCommentDto,
   ResearchQueryDto,
   UpdateCommentStatusDto,
@@ -84,6 +85,16 @@ export class EngagementController {
     @Body() body: HideCommentDto
   ) {
     return this._commentsService.hide(org.id, id, body.hide);
+  }
+
+  @Get('/research/platforms')
+  researchPlatforms() {
+    return this._commentsService.researchPlatforms();
+  }
+
+  @Get('/research/keyword')
+  keywordResearch(@Query() query: KeywordResearchQueryDto) {
+    return this._commentsService.keywordResearch(query.platform, query.q);
   }
 
   @Get('/research')

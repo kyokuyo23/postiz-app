@@ -146,3 +146,15 @@ export class ResearchQueryDto {
   @MaxLength(100)
   q: string;
 }
+
+export class KeywordResearchQueryDto {
+  @IsDefined()
+  @IsIn(['tiktok', 'youtube', 'instagram', 'threads', 'facebook'])
+  platform: 'tiktok' | 'youtube' | 'instagram' | 'threads' | 'facebook';
+
+  @IsDefined()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  q: string;
+}

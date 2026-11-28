@@ -10,6 +10,7 @@ export default {
     '<rootDir>/src/affiliate/__tests__/**/*.spec.ts',
     '<rootDir>/src/live/__tests__/**/*.spec.ts',
     '<rootDir>/src/integrations/__tests__/**/*.spec.ts',
+    '<rootDir>/src/research/__tests__/**/*.spec.ts',
   ],
   moduleNameMapper: {
     '^@gitroom/nestjs-libraries/(.*)$': '<rootDir>/src/$1',

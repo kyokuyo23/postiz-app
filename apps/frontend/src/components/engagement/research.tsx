@@ -9,6 +9,7 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import {
   readError,
   useCommentSources,
+  useResearchPlatforms,
 } from '@gitroom/frontend/components/engagement/engagement.hooks';
 import {
   Card,
@@ -31,6 +32,14 @@ interface ResearchItem {
   comments?: number;
 }
 
+const PLATFORM_LABELS: Record<string, string> = {
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  instagram: 'Instagram',
+  threads: 'Threads',
+  facebook: 'Facebook',
+};
+
 const compact = (n?: number) =>
   n === undefined ? '' : new Intl.NumberFormat('en', { notation: 'compact' }).format(n);
 
@@ -39,29 +48,44 @@ export const Research: FC = () => {
   const fetch = useFetch();
   const toaster = useToaster();
   const { data: sources } = useCommentSources();
+  const { data: keyword } = useResearchPlatforms();
   const channels = (sources || []).filter((s) => s.canResearch);
-  const [integrationId, setIntegrationId] = useState('');
+  const platforms = keyword?.platforms || [];
+  // "sc:<platform>" searches through ScrapeCreators, "ch:<id>" through a channel.
+  const [source, setSource] = useState('');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ResearchItem[] | null>(null);
 
-  const firstChannel = channels[0]?.id;
+  const firstSource = platforms[0]
+    ? `sc:${platforms[0]}`
+    : channels[0]
+    ? `ch:${channels[0].id}`
+    : '';
   useEffect(() => {
-    if (!integrationId && firstChannel) {
-      setIntegrationId(firstChannel);
+    if (!source && firstSource) {
+      setSource(firstSource);
     }
-  }, [integrationId, firstChannel]);
+  }, [source, firstSource]);
+  const selectedChannel = source.startsWith('ch:')
+    ? channels.find((c) => c.id === source.slice(3))
+    : undefined;
 
   const search = async (e: FormEvent) => {
     e.preventDefault();
-    if (!integrationId || query.trim().length < 2) {
+    if (!source || query.trim().length < 2) {
       return;
     }
     setLoading(true);
+    const q = encodeURIComponent(query.trim());
     const res = await fetch(
-      `/engagement/research?integrationId=${encodeURIComponent(
-        integrationId
-      )}&q=${encodeURIComponent(query.trim())}`
+      source.startsWith('sc:')
+        ? `/engagement/research/keyword?platform=${encodeURIComponent(
+            source.slice(3)
+          )}&q=${q}`
+        : `/engagement/research?integrationId=${encodeURIComponent(
+            source.slice(3)
+          )}&q=${q}`
     );
     setLoading(false);
     if (!res.ok) {
@@ -76,29 +100,42 @@ export const Research: FC = () => {
       title={t('research', 'Research')}
       description={t(
         'research_description',
-        'Find popular public content by keyword through the platform’s official search API.'
+        'Find popular public content by keyword on TikTok, YouTube, Instagram, Threads and Facebook.'
       )}
     >
-      {sources && !channels.length ? (
+      {sources && keyword && !channels.length && !platforms.length ? (
         <EmptyState title={t('no_research_channels', 'No channel supports research yet')}>
           {t(
             'no_research_channels_description',
-            'Connect a YouTube channel. Threads keyword search needs Meta approval for the threads_keyword_search permission.'
+            'Set SCRAPECREATORS_API_KEY in backend.env to search TikTok, YouTube, Instagram, Threads and Facebook, or connect a YouTube channel.'
           )}
         </EmptyState>
       ) : (
         <form onSubmit={search} className="flex flex-wrap gap-[12px]">
           <select
-            value={integrationId}
-            onChange={(e) => setIntegrationId(e.target.value)}
-            className={clsx(inputClass, 'max-w-[240px]')}
-            aria-label={t('channel', 'Channel')}
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className={clsx(inputClass, 'max-w-[260px]')}
+            aria-label={t('research_source', 'Search on')}
           >
-            {channels.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.providerIdentifier})
-              </option>
-            ))}
+            {!!platforms.length && (
+              <optgroup label={t('research_public_search', 'Public search')}>
+                {platforms.map((p) => (
+                  <option key={p} value={`sc:${p}`}>
+                    {PLATFORM_LABELS[p] || p}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {!!channels.length && (
+              <optgroup label={t('research_my_channels', 'My channels')}>
+                {channels.map((c) => (
+                  <option key={c.id} value={`ch:${c.id}`}>
+                    {c.name} ({c.providerIdentifier})
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <input
             value={query}
@@ -116,7 +153,7 @@ export const Research: FC = () => {
 
       {results && !results.length && (
         <EmptyState title={t('no_results', 'No results')}>
-          {channels.find((c) => c.id === integrationId)?.researchNote || null}
+          {selectedChannel?.researchNote || null}
         </EmptyState>
       )}
 
@@ -131,7 +168,13 @@ export const Research: FC = () => {
           >
             <Card className="!p-[0] overflow-hidden h-full hover:border-btnPrimary transition-colors">
               {item.thumbnail && (
-                <img src={item.thumbnail} alt="" className="w-full aspect-video object-cover" />
+                <img
+                  src={item.thumbnail}
+                  alt=""
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="w-full aspect-video object-cover"
+                />
               )}
               <div className="p-[14px] flex flex-col gap-[6px]">
                 {item.title && (
@@ -141,13 +184,24 @@ export const Research: FC = () => {
                   <div className="text-[13px] text-textItemBlur line-clamp-3">{item.text}</div>
                 )}
                 <div className="text-[12px] text-textItemBlur">
-                  {item.author} · {dayjs(item.publishedAt).format('DD MMM YYYY')}
+                  {item.author}
+                  {item.publishedAt
+                    ? ` · ${dayjs(item.publishedAt).format('DD MMM YYYY')}`
+                    : ''}
                 </div>
-                {item.views !== undefined && (
+                {(item.views !== undefined ||
+                  item.likes !== undefined ||
+                  item.comments !== undefined) && (
                   <div className="text-[12px] flex gap-[12px]">
-                    <span>{compact(item.views)} {t('views', 'views')}</span>
-                    <span>{compact(item.likes)} {t('likes', 'likes')}</span>
-                    <span>{compact(item.comments)} {t('comments', 'comments')}</span>
+                    {item.views !== undefined && (
+                      <span>{compact(item.views)} {t('views', 'views')}</span>
+                    )}
+                    {item.likes !== undefined && (
+                      <span>{compact(item.likes)} {t('likes', 'likes')}</span>
+                    )}
+                    {item.comments !== undefined && (
+                      <span>{compact(item.comments)} {t('comments', 'comments')}</span>
+                    )}
                   </div>
                 )}
               </div>
