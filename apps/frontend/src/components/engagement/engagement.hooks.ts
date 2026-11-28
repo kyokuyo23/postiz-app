@@ -93,6 +93,21 @@ export const useCommentSources = () => {
   return useSWR('engagement-sources', load);
 };
 
+export interface ResearchPlatforms {
+  enabled: boolean;
+  platforms: string[];
+}
+
+export const useResearchPlatforms = () => {
+  const fetch = useFetch();
+  const load = useCallback(async () => {
+    return (await (
+      await fetch('/engagement/research/platforms')
+    ).json()) as ResearchPlatforms;
+  }, [fetch]);
+  return useSWR('engagement-research-platforms', load);
+};
+
 export const useCommentStats = (days: number) => {
   const fetch = useFetch();
   const load = useCallback(async () => {

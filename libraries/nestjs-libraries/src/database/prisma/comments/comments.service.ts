@@ -14,6 +14,17 @@ import { decide } from '@gitroom/nestjs-libraries/comments/comment.rules';
 import { CommentsListQueryDto } from '@gitroom/nestjs-libraries/dtos/comments/comments.dto';
 import { organizationId } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
 import { timer } from '@gitroom/helpers/utils/timer';
+import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import type { ResearchItem } from '@gitroom/nestjs-libraries/integrations/social/comments.interface';
+import {
+  SCRAPECREATORS_PLATFORMS,
+  ScrapeCreatorsPlatform,
+  scrapeCreatorsEnabled,
+  searchScrapeCreators,
+} from '@gitroom/nestjs-libraries/research/scrapecreators.client';
+
+/** Keyword results are cached so repeated searches don't spend credits. */
+const KEYWORD_CACHE_SECONDS = 60 * 60;
 
 /** First sync looks back this far; automations never act on these. */
 const INITIAL_LOOKBACK_DAYS = 7;
@@ -437,6 +448,46 @@ export class CommentsService {
       if (e instanceof BadRequestException) {
         throw e;
       }
+      throw new BadRequestException(`Search failed: ${errorMessage(e)}`);
+    }
+  }
+
+  /** Keyword sources that need no connected channel (ScrapeCreators). */
+  researchPlatforms() {
+    return {
+      enabled: scrapeCreatorsEnabled(),
+      platforms: scrapeCreatorsEnabled() ? [...SCRAPECREATORS_PLATFORMS] : [],
+    };
+  }
+
+  async keywordResearch(
+    platform: ScrapeCreatorsPlatform,
+    query: string
+  ): Promise<ResearchItem[]> {
+    if (!scrapeCreatorsEnabled()) {
+      throw new BadRequestException(
+        'Keyword search is not configured: set SCRAPECREATORS_API_KEY in backend.env'
+      );
+    }
+    const q = query.trim().replace(/\s+/g, ' ');
+    const cacheKey = `research:sc:${platform}:${q.toLowerCase()}`;
+    try {
+      const cached = await ioRedis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached) as ResearchItem[];
+      }
+    } catch {
+      // cache is best effort
+    }
+    try {
+      const items = await searchScrapeCreators(platform, q);
+      try {
+        await ioRedis.set(cacheKey, JSON.stringify(items), 'EX', KEYWORD_CACHE_SECONDS);
+      } catch {
+        // cache is best effort
+      }
+      return items;
+    } catch (e) {
       throw new BadRequestException(`Search failed: ${errorMessage(e)}`);
     }
   }
